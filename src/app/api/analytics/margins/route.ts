@@ -1,3 +1,4 @@
+
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, apiSuccess } from "@/lib/errorHandler";
@@ -17,9 +18,15 @@ export async function GET(req: NextRequest) {
 
     // 2. Fetch stock catalog to calculate benchmark costs
     const stockItems = await prisma.stockItem.findMany();
-    const panelUnitCost = Number(stockItems.find((s) => s.category === "PANEL")?.unitCost ?? 8500);
-    const inverterUnitCost = Number(stockItems.find((s) => s.category === "INVERTER")?.unitCost ?? 32000);
-    const structureUnitCost = Number(stockItems.find((s) => s.category === "STRUCTURE")?.unitCost ?? 2500);
+    const panelUnitCost = Number(
+      stockItems.find((s) => s.category === "PANEL")?.unitCost ?? 8500
+    );
+    const inverterUnitCost = Number(
+      stockItems.find((s) => s.category === "INVERTER")?.unitCost ?? 32000
+    );
+    const structureUnitCost = Number(
+      stockItems.find((s) => s.category === "STRUCTURE")?.unitCost ?? 2500
+    );
     const balanceCost = 15000;
 
     let totalRevenue = 0;
@@ -38,19 +45,22 @@ export async function GET(req: NextRequest) {
     const capacityDistribution: Record<string, number> = {};
 
     for (const project of projects) {
-      // Pipeline stage counters
       if (pipelineCounts[project.status] !== undefined) {
         pipelineCounts[project.status]++;
       }
 
       const cap = Number(project.capacityKw);
       const capKey = `${cap}kW`;
-      capacityDistribution[capKey] = (capacityDistribution[capKey] || 0) + 1;
+      capacityDistribution[capKey] =
+        (capacityDistribution[capKey] || 0) + 1;
 
-      // Calculate hardware cost based on capacity
       const panelCount = Math.ceil((cap * 1000) / 550);
       const structureUnits = Math.ceil(panelCount / 2);
-      const projectBOM = panelCount * panelUnitCost + inverterUnitCost + structureUnits * structureUnitCost + balanceCost;
+      const projectBOM =
+        panelCount * panelUnitCost +
+        inverterUnitCost +
+        structureUnits * structureUnitCost +
+        balanceCost;
 
       totalEstimatedBOMCost += projectBOM;
 
@@ -59,13 +69,17 @@ export async function GET(req: NextRequest) {
       }
 
       if (project.systemType === "ON_GRID") {
-        const sub = cap <= 3 ? cap * 18000 : 3 * 18000 + (cap - 3) * 9000;
+        const sub =
+          cap <= 3
+            ? cap * 18000
+            : 3 * 18000 + (cap - 3) * 9000;
         totalSubsidyDisbursed += sub;
       }
     }
 
     const grossProfit = totalRevenue - totalEstimatedBOMCost;
-    const grossMarginPercent = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
+    const grossMarginPercent =
+      totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
 
     return apiSuccess({
       metrics: {
