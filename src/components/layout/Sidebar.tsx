@@ -10,7 +10,8 @@ import {
   SunMedium, 
   ShieldCheck, 
   ChevronRight,
-  type LucideIcon
+  Lock,
+  type LucideIcon 
 } from 'lucide-react';
 import { UserRole } from '@/types/solar';
 
@@ -19,22 +20,61 @@ interface SidebarProps {
   onRoleSelect: (role: UserRole) => void;
   activeView: string;
   onViewChange: (view: string) => void;
+  // If true, restricts navigation exclusively to tabs permitted for currentRole
+  enforceRbac?: boolean; 
 }
 
 interface NavItem {
   id: string;
   label: string;
-  role: UserRole;
+  allowedRoles: UserRole[];
   icon: LucideIcon;
   description: string;
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: 'sales-leads', label: 'Sales CRM & Leads', role: 'SALES', icon: Users, description: 'Pipeline & Quotes' },
-  { id: 'surveyor-form', label: 'Field Site Survey', role: 'SURVEYOR', icon: Compass, description: 'Roof Azimuth & Viability' },
-  { id: 'warehouse-dispatch', label: 'Hardware Dispatch', role: 'WAREHOUSE', icon: Warehouse, description: 'Serial Number Scanner' },
-  { id: 'technician-signoff', label: 'Field Ops Sign-Off', role: 'TECHNICIAN', icon: Wrench, description: 'Electrical Test & Glass Sign' },
-  { id: 'director-margins', label: 'Executive Margins', role: 'DIRECTOR', icon: LineChart, description: 'Profit & Warranty Health' },
+  { 
+    id: 'sales-leads', 
+    label: 'Sales CRM & Leads', 
+    allowedRoles: ['SALES', 'DIRECTOR'], 
+    icon: Users, 
+    description: 'Pipeline & Inquiry Entry' 
+  },
+  { 
+    id: 'sales-quotes', 
+    label: 'Quote & BOM Engine', 
+    allowedRoles: ['SALES', 'DIRECTOR'], 
+    icon: LineChart, 
+    description: 'Package Sizing & Costs' 
+  },
+  { 
+    id: 'surveyor-form', 
+    label: 'Field Site Survey', 
+    allowedRoles: ['SURVEYOR', 'DIRECTOR'], 
+    icon: Compass, 
+    description: 'Roof Azimuth & Feasibility' 
+  },
+  { 
+    id: 'warehouse-dispatch', 
+    label: 'Hardware Dispatch', 
+    allowedRoles: ['WAREHOUSE', 'DIRECTOR'], 
+    icon: Warehouse, 
+    description: 'BOM Serial Scanner' 
+  },
+  { 
+    id: 'technician-signoff', 
+    label: 'Field Ops Sign-Off', 
+    allowedRoles: ['TECHNICIAN', 'DIRECTOR'], 
+    icon: Wrench, 
+    description: 'Electrical & SVG Signature' 
+  },
+  { 
+    id: 'director-margins', 
+    label: 'Executive Margins', 
+    allowedRoles: ['DIRECTOR'], 
+    icon: LineChart, 
+    description: 'Unit Economics & SLA' 
+  },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -42,6 +82,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onRoleSelect,
   activeView,
   onViewChange,
+  enforceRbac = false,
 }) => {
   return (
     <aside className="w-72 bg-enterprise-navy text-enterprise-bg flex flex-col h-screen border-r border-enterprise-navy shrink-0 select-none">
@@ -59,18 +100,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <ShieldCheck className="w-5 h-5 text-enterprise-forest" />
       </div>
 
-      {/* Role Emulation Switcher */}
+      {/* Role Switcher */}
       <div className="p-4 border-b border-slate-800">
         <label className="block text-[11px] uppercase tracking-wider text-enterprise-smoke font-semibold mb-2">
-          Switch Operator Role
+          Operator Session Role
         </label>
         <select
+          suppressHydrationWarning
           value={currentRole}
           onChange={(e) => {
             const role = e.target.value as UserRole;
             onRoleSelect(role);
-            const targetNav = NAV_ITEMS.find((item) => item.role === role);
-            if (targetNav) onViewChange(targetNav.id);
+            // Default to first accessible view for this role
+            const firstAllowed = NAV_ITEMS.find((item) => item.allowedRoles.includes(role));
+            if (firstAllowed) onViewChange(firstAllowed.id);
           }}
           className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-enterprise-blue"
         >
@@ -78,29 +121,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <option value="SURVEYOR">Field Surveyor</option>
           <option value="WAREHOUSE">Warehouse Dispatcher</option>
           <option value="TECHNICIAN">Installation Technician</option>
-          <option value="DIRECTOR">Business Director</option>
+          <option value="DIRECTOR">Business Director (Admin)</option>
         </select>
       </div>
 
-      {/* Navigation Links */}
+      {/* Navigation Links with RBAC checks */}
       <nav className="flex-1 overflow-y-auto p-4 space-y-1.5">
-        <div className="text-[11px] uppercase tracking-wider text-enterprise-smoke font-semibold px-3 mb-2">
-          Role Views
+        <div className="text-[11px] uppercase tracking-wider text-enterprise-smoke font-semibold px-3 mb-2 flex items-center justify-between">
+          <span>Authorized Views</span>
+          {enforceRbac && <span className="text-[10px] text-enterprise-amber">RBAC Enforced</span>}
         </div>
+
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const isActive = activeView === item.id;
-          const isRoleMatched = currentRole === item.role;
+          const isPermitted = item.allowedRoles.includes(currentRole);
+
+          // If RBAC is strict and user is unauthorized, hide tab
+          if (enforceRbac && !isPermitted) {
+            return null;
+          }
 
           return (
             <button
               key={item.id}
+              suppressHydrationWarning
+              disabled={!isPermitted}
               onClick={() => {
-                onRoleSelect(item.role);
-                onViewChange(item.id);
+                if (isPermitted) onViewChange(item.id);
               }}
               className={`w-full flex items-center justify-between px-3.5 py-3 rounded text-left transition-colors ${
-                isActive
+                !isPermitted
+                  ? 'opacity-40 cursor-not-allowed bg-transparent text-slate-500'
+                  : isActive
                   ? 'bg-enterprise-blue text-white shadow-sm font-medium'
                   : 'text-slate-300 hover:bg-slate-800 hover:text-white'
               }`}
@@ -110,9 +163,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div>
                   <div className="text-sm leading-tight flex items-center gap-2">
                     {item.label}
-                    {isRoleMatched && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-enterprise-forest" />
-                    )}
+                    {!isPermitted && <Lock className="w-3 h-3 text-enterprise-brick" />}
                   </div>
                   <div className="text-[11px] text-enterprise-smoke leading-tight mt-0.5">
                     {item.description}
@@ -125,15 +176,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
         })}
       </nav>
 
-      {/* User Session Footer */}
+      {/* User Session Node Footer */}
       <div className="p-4 border-t border-slate-800 bg-slate-950/40">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-semibold text-slate-200">
             {currentRole.substring(0, 2)}
           </div>
           <div className="overflow-hidden">
-            <p className="text-sm font-medium text-white truncate">Authorized Station</p>
-            <p className="text-xs text-enterprise-smoke truncate">Node: worker-edge-01</p>
+            <p className="text-sm font-medium text-white truncate">Role: {currentRole}</p>
+            <p className="text-xs text-enterprise-smoke truncate">Station: TLS 1.3 Strict</p>
           </div>
         </div>
       </div>

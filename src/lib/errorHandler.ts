@@ -9,6 +9,8 @@ export type ApiErrorCode =
   | 'INVALID_STATE_TRANSITION'
   | 'TRANSACTION_CONFLICT'
   | 'INSUFFICIENT_STOCK'
+  | 'SERIAL_NOT_FOUND'
+  | 'SERIAL_ALREADY_ASSIGNED'
   | 'INTERNAL_SERVER_ERROR';
 
 export class ApiError extends Error {

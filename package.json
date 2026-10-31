@@ -3,12 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-  "dev": "next dev",
-  "build": "next build",
-  "start": "next start",
-  "lint": "eslint",
-  "db:seed": "tsx prisma/seed.ts",
-  "postinstall": "prisma skills sync || exit 0"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "postinstall": "prisma skills sync || exit 0"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
@@ -25,7 +24,8 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@tailwindcss/turbopack": "^4",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@tailwindcss/turbopack": "^4.3.3",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20",
@@ -33,6 +33,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
+    "postcss": "^8.5.32",
     "prisma": "^6.19.3",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
