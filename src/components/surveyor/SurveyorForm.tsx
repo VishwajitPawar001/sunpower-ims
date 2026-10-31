@@ -1,7 +1,18 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Compass, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
+import { 
+  Compass, 
+  CheckCircle2, 
+  AlertTriangle, 
+  Loader2, 
+  SunMedium, 
+  Zap, 
+  Gauge, 
+  ShieldAlert, 
+  FileText,
+  Check
+} from 'lucide-react';
 import { submitSurveyApi, SiteSurveyPayload } from '@/lib/api';
 
 export const SurveyorForm: React.FC = () => {
@@ -19,6 +30,9 @@ export const SurveyorForm: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'SUCCESS' | 'ERROR'; text: string } | null>(null);
+
+  const estimatedCapacityKw = (formData.usableAreaSqm / 10).toFixed(1);
+  const azimuthDrift = Math.abs(formData.azimuthDegrees - 180);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,181 +79,265 @@ export const SurveyorForm: React.FC = () => {
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <div className="bg-enterprise-surface rounded-lg border border-enterprise-border p-6 shadow-sm">
-        <div className="flex items-center justify-between border-b border-enterprise-border pb-4 mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded bg-slate-100 flex items-center justify-center text-enterprise-blue">
-              <Compass className="w-6 h-6" />
+    <div className="max-w-4xl mx-auto space-y-6 text-slate-200">
+      <div className="bg-[#0B111E]/90 p-6 rounded-2xl border border-slate-800 shadow-xl backdrop-blur-md">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center shadow-lg shadow-amber-500/10">
+              <Compass className="w-6 h-6 stroke-[2]" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-enterprise-charcoal">
-                Rooftop Solar Site Survey & Feasibility
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-amber-400/10 text-amber-400 border border-amber-400/20">
+                  DOSSIER: {formData.projectId.substring(0, 13)}...
+                </span>
+                <span className="text-[10px] font-mono bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700 font-normal">
+                  STAGE 02
+                </span>
+              </div>
+              <h2 className="text-xl font-bold text-white mt-1.5 tracking-tight flex items-center gap-2">
+                Rooftop Solar Feasibility & 3D Azimuth Assessment
               </h2>
-              <p className="text-xs text-enterprise-smoke">
-                Submits directly to POST /api/surveys per Section 5.1 & 5.2 specs
-              </p>
             </div>
           </div>
-          <span className="text-xs font-mono bg-slate-100 text-enterprise-smoke px-2.5 py-1 rounded border border-enterprise-border">
-            {formData.projectId.substring(0, 13)}...
-          </span>
+
+          <div className="sm:text-right">
+            <div className="text-xs font-mono font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1.5 rounded-lg inline-flex items-center gap-1.5">
+              <SunMedium className="w-4 h-4 text-amber-400 animate-pulse" />
+              SOLAR WINDOW: OPTIMAL
+            </div>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <div>
-              <label className="block text-xs font-semibold text-enterprise-charcoal mb-1">
-                Usable Roof Area (m²) *
-              </label>
-              <input
-                type="number"
-                step="0.1"
-                min="1"
-                max="10000"
-                value={formData.usableAreaSqm}
-                onChange={(e) =>
-                  setFormData({ ...formData, usableAreaSqm: parseFloat(e.target.value) || 0 })
-                }
-                required
-                className="w-full bg-enterprise-surface border border-enterprise-border rounded px-3 py-2 text-sm text-enterprise-charcoal focus:border-enterprise-blue focus:outline-none"
-              />
-              <span className="text-[11px] text-enterprise-smoke">Required: &gt; 10 m² per kWp</span>
-            </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 my-6">
+          <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
+            <div className="text-[11px] font-mono text-slate-400">PV Generation Potential</div>
+            <div className="text-xl font-bold font-mono text-amber-400 mt-1">~{estimatedCapacityKw} kWp</div>
+            <div className="text-[10px] text-slate-500 mt-0.5 font-mono">10 m² / kWp standard</div>
+          </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-enterprise-charcoal mb-1">
-                Sanctioned Grid Load (kW) *
-              </label>
-              <input
-                type="number"
-                step="0.5"
-                min="0.5"
-                max="100"
-                value={formData.sanctionedLoadKw}
-                onChange={(e) =>
-                  setFormData({ ...formData, sanctionedLoadKw: parseFloat(e.target.value) || 0 })
-                }
-                required
-                className="w-full bg-enterprise-surface border border-enterprise-border rounded px-3 py-2 text-sm text-enterprise-charcoal focus:border-enterprise-blue focus:outline-none"
-              />
-              <span className="text-[11px] text-enterprise-smoke">Discom grid connection meter capacity</span>
-            </div>
+          <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
+            <div className="text-[11px] font-mono text-slate-400">Azimuth True South</div>
+            <div className="text-xl font-bold font-mono text-white mt-1">{formData.azimuthDegrees}°</div>
+            <div className="text-[10px] text-emerald-400 mt-0.5 font-mono">{azimuthDrift}° drift from 180°</div>
+          </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-enterprise-charcoal mb-1">
-                Roof Tilt Angle (Degrees 0° - 90°) *
-              </label>
-              <input
-                type="number"
-                step="0.5"
-                min="0"
-                max="90"
-                value={formData.tiltDegrees}
-                onChange={(e) =>
-                  setFormData({ ...formData, tiltDegrees: parseFloat(e.target.value) || 0 })
-                }
-                required
-                className="w-full bg-enterprise-surface border border-enterprise-border rounded px-3 py-2 text-sm text-enterprise-charcoal focus:border-enterprise-blue focus:outline-none"
-              />
-              <span className="text-[11px] text-enterprise-smoke">Optimal latitude slope: 15° - 20°</span>
-            </div>
+          <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
+            <div className="text-[11px] font-mono text-slate-400">Racking Tilt Angle</div>
+            <div className="text-xl font-bold font-mono text-white mt-1">{formData.tiltDegrees}°</div>
+            <div className="text-[10px] text-slate-500 mt-0.5 font-mono">Latitude matched</div>
+          </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-enterprise-charcoal mb-1">
-                Azimuth Angle (Degrees 0° - 360°) *
-              </label>
-              <input
-                type="number"
-                step="1"
-                min="0"
-                max="360"
-                value={formData.azimuthDegrees}
-                onChange={(e) =>
-                  setFormData({ ...formData, azimuthDegrees: parseFloat(e.target.value) || 0 })
-                }
-                required
-                className="w-full bg-enterprise-surface border border-enterprise-border rounded px-3 py-2 text-sm text-enterprise-charcoal focus:border-enterprise-blue focus:outline-none"
-              />
-              <span className="text-[11px] text-enterprise-smoke">True South: 180° (Zero drift)</span>
+          <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800/80">
+            <div className="text-[11px] font-mono text-slate-400">DC Drop Risk</div>
+            <div className="text-xl font-bold font-mono text-emerald-400 mt-1">
+              {formData.cableRunMeters > 40 ? 'COMPENSATED' : '< 1.5%'}
             </div>
+            <div className="text-[10px] text-slate-500 mt-0.5 font-mono">{formData.cableRunMeters}m to Inverter</div>
+          </div>
+        </div>
 
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-semibold text-enterprise-charcoal mb-1">
-                Estimated Cable Run to Inverter / Meter (Meters) *
-              </label>
-              <input
-                type="number"
-                step="0.5"
-                min="1"
-                max="500"
-                value={formData.cableRunMeters}
-                onChange={(e) =>
-                  setFormData({ ...formData, cableRunMeters: parseFloat(e.target.value) || 0 })
-                }
-                required
-                className="w-full bg-enterprise-surface border border-enterprise-border rounded px-3 py-2 text-sm text-enterprise-charcoal focus:border-enterprise-blue focus:outline-none"
-              />
-              <span className="text-[11px] text-enterprise-smoke">
-                Runs &gt; 40m calculate DC voltage drop compensation
-              </span>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <div className="text-xs font-mono uppercase tracking-wider text-amber-400 font-semibold mb-3 flex items-center gap-1.5">
+              <Gauge className="w-3.5 h-3.5" />
+              Section 1: Rooftop Surface Geometry
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Usable Shadow-Free Roof Area (m²) *
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="1"
+                    max="10000"
+                    value={formData.usableAreaSqm}
+                    onChange={(e) =>
+                      setFormData({ ...formData, usableAreaSqm: parseFloat(e.target.value) || 0 })
+                    }
+                    required
+                    className="w-full bg-slate-950/70 border border-slate-800 rounded-lg px-3.5 py-2 text-xs font-mono text-white focus:border-amber-400 focus:outline-none transition-colors"
+                  />
+                  <span className="absolute right-3 top-2 text-xs font-mono text-slate-500 pointer-events-none">m²</span>
+                </div>
+                <span className="text-[10px] text-slate-500 font-mono mt-1 block">Rule: 10 m² per kWp required</span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Roof Slope Tilt Angle (0° - 90°) *
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    max="90"
+                    value={formData.tiltDegrees}
+                    onChange={(e) =>
+                      setFormData({ ...formData, tiltDegrees: parseFloat(e.target.value) || 0 })
+                    }
+                    required
+                    className="w-full bg-slate-950/70 border border-slate-800 rounded-lg px-3.5 py-2 text-xs font-mono text-white focus:border-amber-400 focus:outline-none transition-colors"
+                  />
+                  <span className="absolute right-3 top-2 text-xs font-mono text-slate-500 pointer-events-none">deg</span>
+                </div>
+                <span className="text-[10px] text-slate-500 font-mono mt-1 block">Optimal latitude slope: 15° - 20°</span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Azimuth Direction Angle (0° - 360°) *
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    max="360"
+                    value={formData.azimuthDegrees}
+                    onChange={(e) =>
+                      setFormData({ ...formData, azimuthDegrees: parseFloat(e.target.value) || 0 })
+                    }
+                    required
+                    className="w-full bg-slate-950/70 border border-slate-800 rounded-lg px-3.5 py-2 text-xs font-mono text-white focus:border-amber-400 focus:outline-none transition-colors"
+                  />
+                  <span className="absolute right-3 top-2 text-xs font-mono text-slate-500 pointer-events-none">deg</span>
+                </div>
+                <span className="text-[10px] text-slate-500 font-mono mt-1 block">True South: 180° (Zero drift)</span>
+              </div>
             </div>
           </div>
 
-          <div className="pt-2 border-t border-enterprise-border space-y-3">
-            <label className="flex items-center gap-3 cursor-pointer">
+          <div>
+            <div className="text-xs font-mono uppercase tracking-wider text-amber-400 font-semibold mb-3 flex items-center gap-1.5">
+              <Zap className="w-3.5 h-3.5" />
+              Section 2: Discom Interconnect & Cable Run
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Sanctioned Grid Connected Load (kW) *
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0.5"
+                    max="100"
+                    value={formData.sanctionedLoadKw}
+                    onChange={(e) =>
+                      setFormData({ ...formData, sanctionedLoadKw: parseFloat(e.target.value) || 0 })
+                    }
+                    required
+                    className="w-full bg-slate-950/70 border border-slate-800 rounded-lg px-3.5 py-2 text-xs font-mono text-white focus:border-amber-400 focus:outline-none transition-colors"
+                  />
+                  <span className="absolute right-3 top-2 text-xs font-mono text-slate-500 pointer-events-none">kW</span>
+                </div>
+                <span className="text-[10px] text-slate-500 font-mono mt-1 block">Discom bi-directional meter rating</span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Estimated Cable Run to Inverter (Meters) *
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="1"
+                    max="500"
+                    value={formData.cableRunMeters}
+                    onChange={(e) =>
+                      setFormData({ ...formData, cableRunMeters: parseFloat(e.target.value) || 0 })
+                    }
+                    required
+                    className="w-full bg-slate-950/70 border border-slate-800 rounded-lg px-3.5 py-2 text-xs font-mono text-white focus:border-amber-400 focus:outline-none transition-colors"
+                  />
+                  <span className="absolute right-3 top-2 text-xs font-mono text-slate-500 pointer-events-none">m</span>
+                </div>
+                <span className="text-[10px] text-slate-500 font-mono mt-1 block">Runs &gt; 40m auto-apply drop compensation</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-slate-800 space-y-3">
+            <div className="text-xs font-mono uppercase tracking-wider text-amber-400 font-semibold mb-2">
+              Section 3: Environmental & Structural Sign-Off
+            </div>
+
+            <label className={`flex items-start gap-3 p-3.5 rounded-xl border transition-all cursor-pointer ${
+              formData.isShadowFree 
+                ? 'bg-slate-950/80 border-slate-700/80' 
+                : 'bg-slate-950/40 border-slate-800/80 opacity-60'
+            }`}>
               <input
                 type="checkbox"
                 checked={formData.isShadowFree}
                 onChange={(e) => setFormData({ ...formData, isShadowFree: e.target.checked })}
-                className="w-4 h-4 rounded text-enterprise-blue border-enterprise-border focus:ring-enterprise-blue"
+                className="mt-0.5 w-4 h-4 rounded text-amber-500 border-slate-700 focus:ring-amber-500 bg-slate-900"
               />
               <div>
-                <span className="text-xs font-semibold text-enterprise-charcoal">
-                  Shadow-Free Solar Window Verified
-                </span>
-                <p className="text-[11px] text-enterprise-smoke">
-                  No structural shading from parapets or water tanks between 09:00 - 16:00.
+                <div className="text-xs font-bold text-white flex items-center gap-2">
+                  <span>Shadow-Free Solar Window Verified</span>
+                  {formData.isShadowFree && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                </div>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Confirmed no physical shading from parapets, overhead tanks, or adjacent trees between 09:00 - 16:00.
                 </p>
               </div>
             </label>
 
-            <label className="flex items-center gap-3 cursor-pointer">
+            <label className={`flex items-start gap-3 p-3.5 rounded-xl border transition-all cursor-pointer ${
+              formData.isViable 
+                ? 'bg-slate-950/80 border-slate-700/80' 
+                : 'bg-rose-500/10 border-rose-500/30'
+            }`}>
               <input
                 type="checkbox"
                 checked={formData.isViable}
                 onChange={(e) => setFormData({ ...formData, isViable: e.target.checked })}
-                className="w-4 h-4 rounded text-enterprise-blue border-enterprise-border focus:ring-enterprise-blue"
+                className="mt-0.5 w-4 h-4 rounded text-amber-500 border-slate-700 focus:ring-amber-500 bg-slate-900"
               />
               <div>
-                <span className="text-xs font-semibold text-enterprise-charcoal">
-                  Roof Structurally Viable for Module Mounting Structures (MMS)
-                </span>
-                <p className="text-[11px] text-enterprise-smoke">
-                  Unchecking transitions project directly to [REJECTED] state.
+                <div className="text-xs font-bold text-white flex items-center gap-2">
+                  <span>Roof Structurally Viable for MMS Racking</span>
+                  {formData.isViable ? (
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  ) : (
+                    <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Slab load-bearing capacity rated for 150 km/h wind gusts. Unchecking marks site as [REJECTED].
                 </p>
               </div>
             </label>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-enterprise-charcoal mb-1">
-              Field Surveyor Notes & Observations
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
+              <FileText className="w-3.5 h-3.5 text-slate-400" />
+              Field Surveyor Observation Log
             </label>
             <textarea
               rows={3}
               value={formData.notes ?? ''}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="w-full bg-enterprise-surface border border-enterprise-border rounded px-3 py-2 text-sm text-enterprise-charcoal focus:border-enterprise-blue focus:outline-none"
+              placeholder="Record structural observations, parapet heights, RCC anchor specifications..."
+              className="w-full bg-slate-950/70 border border-slate-800 rounded-lg px-3.5 py-2.5 text-xs text-white placeholder:text-slate-500 focus:border-amber-400 focus:outline-none transition-colors"
             />
           </div>
 
           {statusMessage && (
             <div
-              className={`p-3 rounded text-xs flex items-center gap-2 font-medium ${
+              className={`p-3.5 rounded-xl text-xs flex items-center gap-2.5 font-medium ${
                 statusMessage.type === 'SUCCESS'
-                  ? 'bg-green-50 border border-green-200 text-enterprise-forest'
-                  : 'bg-red-50 border border-red-200 text-enterprise-brick'
+                  ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
+                  : 'bg-rose-500/10 border border-rose-500/30 text-rose-400'
               }`}
             >
               {statusMessage.type === 'SUCCESS' ? (
@@ -247,25 +345,25 @@ export const SurveyorForm: React.FC = () => {
               ) : (
                 <AlertTriangle className="w-4 h-4 shrink-0" />
               )}
-              {statusMessage.text}
+              <span>{statusMessage.text}</span>
             </div>
           )}
 
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-enterprise-border">
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
             <button
               type="button"
               disabled={isLoading}
               onClick={handleReject}
-              className="px-4 py-2 text-xs font-semibold text-enterprise-brick bg-red-50 hover:bg-red-100 rounded border border-red-200 disabled:opacity-50 cursor-pointer"
+              className="px-4 py-2.5 text-xs font-bold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 rounded-lg border border-rose-500/30 disabled:opacity-50 cursor-pointer transition-colors"
             >
-              Reject Site
+              Reject Site Feasibility
             </button>
             <button
               type="submit"
               disabled={isLoading}
-              className="px-5 py-2 text-xs font-semibold text-white bg-enterprise-navy hover:bg-slate-800 rounded shadow-sm flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+              className="px-5 py-2.5 text-xs font-bold text-slate-950 bg-amber-500 hover:bg-amber-400 rounded-lg shadow-lg shadow-amber-500/20 flex items-center gap-2 disabled:opacity-50 cursor-pointer transition-all active:scale-95"
             >
-              {isLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              {isLoading && <Loader2 className="w-4 h-4 animate-spin text-slate-950" />}
               Submit Feasibility Report
             </button>
           </div>

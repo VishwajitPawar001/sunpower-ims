@@ -2,16 +2,16 @@
 
 import React from 'react';
 import { 
-  Users, 
+  Building2, 
   Compass, 
-  Warehouse, 
-  Wrench, 
-  LineChart, 
+  Cpu, 
+  Boxes, 
+  ClipboardCheck, 
+  TrendingUp, 
+  Headphones, 
   SunMedium, 
   ShieldCheck, 
-  ChevronRight,
-  LifeBuoy,
-  LogOut,
+  LogOut, 
   type LucideIcon 
 } from 'lucide-react';
 import { UserRole } from '@/types/solar';
@@ -25,177 +25,192 @@ interface SidebarProps {
   enforceRbac?: boolean;
 }
 
-interface NavItem {
+interface CommandRailItem {
   id: string;
   label: string;
+  code: string;
   allowedRoles: UserRole[];
   icon: LucideIcon;
-  description: string;
+  subtext: string;
+  hasLivePulse?: boolean;
 }
 
-const NAV_ITEMS: NavItem[] = [
+const COMMAND_ITEMS: CommandRailItem[] = [
   { 
     id: 'sales-leads', 
-    label: 'Sales CRM & Leads', 
+    label: 'Commercial CRM', 
+    code: 'CRM-01',
     allowedRoles: ['SALES', 'DIRECTOR'], 
-    icon: Users, 
-    description: 'Pipeline & Inquiry Entry' 
-  },
-  { 
-    id: 'sales-quotes', 
-    label: 'Quote & BOM Engine', 
-    allowedRoles: ['SALES', 'DIRECTOR'], 
-    icon: LineChart, 
-    description: 'Package Sizing & Costs' 
+    icon: Building2, 
+    subtext: 'Pipeline & Discovery' 
   },
   { 
     id: 'surveyor-form', 
-    label: 'Field Site Survey', 
+    label: 'Site Feasibility', 
+    code: 'SRV-02',
     allowedRoles: ['SURVEYOR', 'DIRECTOR'], 
     icon: Compass, 
-    description: 'Roof Azimuth & Feasibility' 
+    subtext: '3D Solar Roof Survey' 
+  },
+  { 
+    id: 'sales-quotes', 
+    label: 'Engineering BOM', 
+    code: 'BOM-03',
+    allowedRoles: ['SALES', 'DIRECTOR'], 
+    icon: Cpu, 
+    subtext: 'System Sizing & Pricing' 
   },
   { 
     id: 'warehouse-dispatch', 
-    label: 'Hardware Dispatch', 
+    label: 'Warehouse Dispatch', 
+    code: 'DSP-04',
     allowedRoles: ['WAREHOUSE', 'DIRECTOR'], 
-    icon: Warehouse, 
-    description: 'BOM Serial Scanner' 
+    icon: Boxes, 
+    subtext: 'Barcode & Serial Scanner',
+    hasLivePulse: true
   },
   { 
     id: 'technician-signoff', 
-    label: 'Field Ops Sign-Off', 
+    label: 'Field Commissioning', 
+    code: 'SIG-05',
     allowedRoles: ['TECHNICIAN', 'DIRECTOR'], 
-    icon: Wrench, 
-    description: 'Electrical & SVG Signature' 
+    icon: ClipboardCheck, 
+    subtext: 'Electrical Sign-off' 
   },
   { 
     id: 'director-margins', 
-    label: 'Executive Margins', 
+    label: 'Margin & P&L Audit', 
+    code: 'FIN-06',
     allowedRoles: ['DIRECTOR'], 
-    icon: LineChart, 
-    description: 'Unit Economics & SLA' 
+    icon: TrendingUp, 
+    subtext: 'Executive Unit Economics' 
   },
   { 
     id: 'support-tickets', 
-    label: 'Support Ticket Desk', 
+    label: 'Service Desk & SLA', 
+    code: 'SUP-07',
     allowedRoles: ['SALES', 'DIRECTOR'], 
-    icon: LifeBuoy, 
-    description: 'Post-Install & Warranty' 
+    icon: Headphones, 
+    subtext: 'Post-Install Support' 
   },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({
   currentRole,
-  onRoleSelect,
   activeView,
   onViewChange,
   onLogout,
-  enforceRbac = false,
+  enforceRbac = true,
 }) => {
+  const canSwitchRoles = currentRole === 'DIRECTOR';
+
   return (
-    <aside className="w-72 bg-enterprise-navy text-enterprise-bg flex flex-col h-screen border-r border-enterprise-navy shrink-0 select-none">
-      {/* Brand Header */}
-      <div className="p-6 border-b border-slate-800 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded bg-enterprise-blue flex items-center justify-center text-white shadow-sm">
-            <SunMedium className="w-6 h-6 text-slate-100" />
+    <aside className="w-[72px] bg-[#060A12] border-r border-slate-800/80 flex flex-col items-center justify-between py-4 select-none shrink-0 z-30 shadow-2xl">
+      {/* Brand Emblem */}
+      <div className="flex flex-col items-center gap-4 w-full">
+        <div className="relative group cursor-pointer">
+          <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-amber-500 via-orange-500 to-yellow-400 flex items-center justify-center text-slate-950 shadow-lg shadow-amber-500/25 ring-1 ring-amber-400/40 transition-transform active:scale-95">
+            <SunMedium className="w-6 h-6 stroke-[2.4]" />
           </div>
-          <div>
-            <h1 className="font-semibold text-base text-white tracking-tight">SunPower Core</h1>
-            <p className="text-xs text-enterprise-smoke font-medium">Enterprise EPC Suite</p>
+
+          {/* Hover Flyout */}
+          <div className="absolute left-16 top-1 hidden group-hover:flex items-center gap-2.5 whitespace-nowrap bg-slate-900/95 border border-slate-700/80 text-white text-xs px-3.5 py-2 rounded-lg shadow-2xl backdrop-blur-md z-50">
+            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+            <div>
+              <p className="font-bold text-white leading-tight">SunPower Core</p>
+              <p className="text-[10px] text-slate-400 font-mono tracking-wider">EPC SCADA v2.4</p>
+            </div>
           </div>
         </div>
-        <ShieldCheck className="w-5 h-5 text-enterprise-forest" />
-      </div>
 
-      {/* Role Switcher */}
-      <div className="p-4 border-b border-slate-800">
-        <label className="block text-[11px] uppercase tracking-wider text-enterprise-smoke font-semibold mb-2">
-          Operator Session Role
-        </label>
-        <select
-          suppressHydrationWarning
-          value={currentRole}
-          onChange={(e) => {
-            const role = e.target.value as UserRole;
-            onRoleSelect(role);
-            const firstAllowed = NAV_ITEMS.find((item) => item.allowedRoles.includes(role));
-            if (firstAllowed) onViewChange(firstAllowed.id);
-          }}
-          className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-enterprise-blue cursor-pointer"
-        >
-          <option value="SALES">Sales Representative</option>
-          <option value="SURVEYOR">Field Surveyor</option>
-          <option value="WAREHOUSE">Warehouse Dispatcher</option>
-          <option value="TECHNICIAN">Installation Technician</option>
-          <option value="DIRECTOR">Business Director (Admin)</option>
-        </select>
-      </div>
+        <div className="w-8 h-[1px] bg-slate-800" />
 
-      {/* Navigation Links */}
-      <nav className="flex-1 overflow-y-auto p-4 space-y-1.5">
-        <div className="text-[11px] uppercase tracking-wider text-enterprise-smoke font-semibold px-3 mb-2 flex items-center justify-between">
-          <span>Operations Views</span>
-        </div>
-
-        {NAV_ITEMS.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeView === item.id;
-          const isPermitted = item.allowedRoles.includes(currentRole);
-
-          if (enforceRbac && !isPermitted) return null;
-
-          return (
-            <button
-              key={item.id}
-              suppressHydrationWarning
-              disabled={!isPermitted}
-              onClick={() => onViewChange(item.id)}
-              className={`w-full flex items-center justify-between px-3.5 py-3 rounded text-left transition-colors cursor-pointer ${
-                !isPermitted
-                  ? 'opacity-40 cursor-not-allowed bg-transparent text-slate-500'
-                  : isActive
-                  ? 'bg-enterprise-blue text-white shadow-sm font-medium'
-                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-enterprise-smoke'}`} />
-                <div>
-                  <div className="text-sm leading-tight flex items-center gap-2">
-                    {item.label}
-                  </div>
-                  <div className="text-[11px] text-enterprise-smoke leading-tight mt-0.5">
-                    {item.description}
-                  </div>
-                </div>
-              </div>
-              <ChevronRight className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-600'}`} />
-            </button>
-          );
-        })}
-      </nav>
-
-      {/* Footer Node */}
-      <div className="p-4 border-t border-slate-800 bg-slate-950/40 flex items-center justify-between">
-        <div className="flex items-center gap-2.5 overflow-hidden">
-          <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-semibold text-slate-200">
+        {/* Role Pill */}
+        <div className="relative group">
+          <div className="w-9 h-9 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-xs font-mono font-bold text-amber-400 tracking-wider">
             {currentRole.substring(0, 2)}
           </div>
-          <div className="overflow-hidden">
-            <p className="text-xs font-medium text-white truncate">Role: {currentRole}</p>
-            <p className="text-[10px] text-enterprise-smoke truncate">Session: TLS 1.3 Strict</p>
+          <div className="absolute left-16 top-0 hidden group-hover:flex flex-col whitespace-nowrap bg-slate-900 border border-slate-700 text-xs px-3.5 py-2 rounded-lg shadow-2xl z-50">
+            <span className="text-white font-semibold flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              {currentRole} WORKSPACE
+            </span>
+            <span className="text-[10px] text-slate-400 font-mono mt-0.5">
+              {canSwitchRoles ? 'Context Switching: Active' : 'Strict Role-Based Access Enforced'}
+            </span>
           </div>
         </div>
+
+        {/* Aerospace Command Rail */}
+        <nav className="flex flex-col gap-2 mt-1">
+          {COMMAND_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeView === item.id;
+            const isPermitted = item.allowedRoles.includes(currentRole);
+
+            if (enforceRbac && !isPermitted) return null;
+
+            return (
+              <div key={item.id} className="relative group">
+                <button
+                  type="button"
+                  suppressHydrationWarning
+                  disabled={!isPermitted}
+                  onClick={() => onViewChange(item.id)}
+                  className={`relative w-11 h-11 rounded-xl flex items-center justify-center transition-all cursor-pointer ${
+                    isActive
+                      ? 'bg-amber-500/15 text-amber-400 border border-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.2)]'
+                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/70 border border-transparent'
+                  }`}
+                >
+                  <Icon className="w-5 h-5 stroke-[1.8]" />
+
+                  {/* Active Indicator Strip */}
+                  {isActive && (
+                    <span className="absolute -left-1 top-2.5 bottom-2.5 w-1 bg-amber-400 rounded-r shadow-[0_0_8px_rgba(245,158,11,0.8)]" />
+                  )}
+
+                  {/* Hardware Live Beacon */}
+                  {item.hasLivePulse && !isActive && (
+                    <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-emerald-400 animate-pulse ring-2 ring-[#060A12]" />
+                  )}
+                </button>
+
+                {/* Tactile Flyout Card */}
+                <div className="absolute left-16 top-1 hidden group-hover:flex flex-col whitespace-nowrap bg-[#0B111E]/95 border border-slate-700/80 text-white text-xs px-3.5 py-2.5 rounded-lg shadow-2xl backdrop-blur-md z-50">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-white tracking-tight">{item.label}</span>
+                    <span className="text-[10px] font-mono text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20 font-bold">
+                      {item.code}
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-slate-400 mt-0.5 font-normal">
+                    {item.subtext}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </nav>
+      </div>
+
+      {/* Sign Out Action */}
+      <div className="flex flex-col items-center gap-3 w-full">
+        <div className="w-8 h-[1px] bg-slate-800" />
+
         {onLogout && (
-          <button
-            onClick={onLogout}
-            title="Log Out"
-            className="p-1.5 text-slate-400 hover:text-red-400 rounded hover:bg-slate-900 transition-colors cursor-pointer"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
+          <div className="relative group">
+            <button
+              type="button"
+              onClick={onLogout}
+              className="w-11 h-11 rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition-all cursor-pointer"
+            >
+              <LogOut className="w-4 h-4 stroke-[2]" />
+            </button>
+            <div className="absolute left-16 bottom-2 hidden group-hover:flex whitespace-nowrap bg-slate-900 border border-slate-700 text-xs text-rose-400 px-3 py-1.5 rounded-lg shadow-2xl z-50">
+              Sign Out
+            </div>
+          </div>
         )}
       </div>
     </aside>
