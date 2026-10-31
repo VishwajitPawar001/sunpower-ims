@@ -41,13 +41,6 @@ export const supportTicketSchema = z
   })
   .strict();
 
-export const loginSchema = z
-  .object({
-    email: z.string().email(),
-    password: z.string().min(6),
-  })
-  .strict();
-
 export const quoteGenerateSchema = z
   .object({
     projectId: z.string().uuid(),
@@ -87,6 +80,34 @@ export const updateTicketSchema = z
   "CLOSED",
   ]),
     description: z.string().min(5, "Description must be at least 5 characters").optional(),
+    status: z.enum(['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED']),
+    description: z
+      .string()
+      .min(5, 'Description must be at least 5 characters')
+      .optional(),
     replacementSerial: z.string().optional(),
+  })
+  .strict();
+
+export const loginSchema = z
+  .object({
+    email: z.string().email('Valid email is required'),
+    password: z.string().min(6, 'Password must be at least 6 characters'),
+  })
+  .strict();
+
+export const createUserSchema = z
+  .object({
+    email: z.string().email('Valid email is required'),
+    fullName: z.string().min(2, 'Full name must be at least 2 characters'),
+    role: z.enum([
+      'ADMIN',
+      'SALES',
+      'SURVEYOR',
+      'WAREHOUSE',
+      'TECHNICIAN',
+      'SUPPORT',
+    ]),
+    password: z.string().min(8, 'Password must be at least 8 characters'),
   })
   .strict();
