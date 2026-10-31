@@ -1,603 +1,266 @@
-generator client {
-  provider = "prisma-client-js"
-}
-
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-// ================= ENUMS =================
+// ------------------------------------------------------
+// ENUMS
+// ------------------------------------------------------
 
 enum UserRole {
+  DIRECTOR
   ADMIN
   SALES
   SURVEYOR
   WAREHOUSE
-  TECHNICIAN
+  LEAD_TECHNICIAN
+  FIELD_RIGGER
   SUPPORT
-
-  @@map("user_role")
-}
-
-enum ProjectStatus {
-  LEAD_RECEIVED
-  SURVEY
-  QUOTATION
-  APPROVAL
-  PROCUREMENT
-  DISPATCH
-  INSTALLATION
-  COMMISSIONING
-  COMPLETED
-  ON_HOLD
-  CANCELLED
-
-  @@map("project_status")
-}
-
-enum ProjectType {
-  NEW_INSTALLATION
-  REPLACEMENT
-  RESTORATION
-  STRUCTURE_REBUILD
-  SYSTEM_UPGRADE
-  MAINTENANCE
-
-  @@map("project_type")
 }
 
 enum SystemType {
   ON_GRID
   OFF_GRID
   HYBRID
+}
+
+enum RoofType {
+  FLAT_RCC
+  METAL_SHEET
+  TILED
+  GROUND_MOUNT
+}
+
+enum ProjectStatus {
+  LEAD_RECEIVED
+  SURVEY_PENDING
+  SURVEY_APPROVED
+  REJECTED
+  QUOTE_ISSUED
+  ORDER_CONFIRMED
+  DISPATCHED
+  COMMISSIONED
+  COMPLETED
+
+  @@map("project_status")
+}
+
+enum SystemType {
+  ON_GRID
+  OFF_GRID
 
   @@map("system_type")
 }
 
-enum ComponentType {
+enum ComponentCategory {
   PANEL
   INVERTER
   BATTERY
+  CHARGE_CONTROLLER
   STRUCTURE
   BALANCE_OF_SYSTEM
-  MISCELLANEOUS
 
   @@map("component_type")
 }
 
-enum WarrantyStatus {
-  ACTIVE
-  EXPIRED
-  VOID
-
-  @@map("warranty_status")
+enum SerialStatus {
+  IN_STOCK
+  DISPATCHED
+  INSTALLED
+  FAILED_RMA
+  RETURNED_TO_VENDOR
 }
 
 enum TicketStatus {
   OPEN
-  INVESTIGATION
-  WAITING_FOR_PARTS
-  REPAIRING
+  INVESTIGATING
   PARTS_REPLACED
   RESOLVED
   CLOSED
-
-  @@map("ticket_status")
 }
 
-enum SalaryType {
-  MONTHLY
-  DAILY
-  PROJECT_BASED
-
-  @@map("salary_type")
+enum BillingType {
+  WARRANTY_FREE
+  BILLABLE
 }
 
-enum AttendanceStatus {
-  PRESENT
-  ABSENT
-  HALF_DAY
-  LEAVE
-
-  @@map("attendance_status")
-}
-
-enum PaymentMethod {
-  CASH
-  UPI
-  BANK_TRANSFER
-  CHEQUE
-  OTHER
-
-  @@map("payment_method")
-}
-
-// ================= 1. USER =================
+// ------------------------------------------------------
+// 1. USERS
+// ------------------------------------------------------
 
 model User {
-  id       Int      @id @default(autoincrement())
-  email    String   @unique
-  password String   @map("password_hash")
-  name     String
-  role     UserRole
-  isActive Boolean  @default(true) @map("is_active")
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  fullName     String   @map("full_name")
+  role         UserRole
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  createdAt DateTime @default(now()) @map("created_at")
+  surveys              SiteSurvey[]
+  commissioningRecords CommissioningRecord[]
 
-  surveys SiteSurvey[]
-  workers Worker[]
-
+  @@index([role])
   @@map("users")
 }
 
-// ================= 2. BUSINESS =================
-
-model Business {
-  id      Int     @id @default(autoincrement())
-  name    String
-  phone   String
-  email   String?
-  address String
-  gstin   String?
-  pan     String?
-  logo    String?
-
-  @@map("business")
-}
-
-// ================= 3. CUSTOMER =================
+// ------------------------------------------------------
+// 2. CUSTOMERS
+// ------------------------------------------------------
 
 model Customer {
-  id             Int     @id @default(autoincrement())
-  name           String
-  phone          String  @unique
-  alternatePhone String? @map("alternate_phone")
-  email          String?
-  address        String
-  billingAddress String? @map("billing_address")
-  gstin          String?
-  notes          String?
-
-  createdAt DateTime @default(now()) @map("created_at")
+  id                  String   @id @default(uuid()) @db.Uuid
+  fullName            String   @map("full_name")
+  phone               String   @unique
+  email               String?
+  installationAddress String   @map("installation_address")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   projects Project[]
-  invoices Invoice[]
-  payments Payment[]
 
   @@map("customers")
 }
 
-// ================= 4. PROJECT =================
+// ------------------------------------------------------
+// 3. PROJECTS
+// ------------------------------------------------------
 
 model Project {
-  id         Int    @id @default(autoincrement())
-  code       String @unique
-  customerId Int    @map("customer_id")
+  id          String        @id @default(uuid()) @db.Uuid
+  projectCode String        @unique @map("project_code")
+  customerId  String        @map("customer_id") @db.Uuid
+  status      ProjectStatus @default(LEAD_RECEIVED)
+  capacityKw  Decimal       @map("capacity_kw") @db.Decimal(4, 2)
+  systemType  SystemType    @map("system_type")
+  agreedPrice Decimal?      @map("agreed_price") @db.Decimal(12, 2)
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  type     ProjectType
-  status   ProjectStatus @default(LEAD_RECEIVED)
-  progress Int           @default(0)
-
-  capacity   Decimal    @db.Decimal(8, 2)
-  systemType SystemType @map("system_type")
-
-  budget     Decimal? @db.Decimal(12, 2)
-  actualCost Decimal  @default(0) @map("actual_cost")
-  price      Decimal? @db.Decimal(12, 2)
-
-  startDate DateTime? @map("start_date") @db.Date
-  endDate   DateTime? @map("end_date") @db.Date
-
-  notes String?
-
-  createdAt DateTime @default(now()) @map("created_at")
-
-  customer         Customer          @relation(fields: [customerId], references: [id])
-  survey           SiteSurvey?
-  progressLogs     ProjectProgress[]
-  materials        ProjectMaterial[]
-  workers          ProjectWorker[]
-  workLogs         WorkLog[]
-  dispatches       Dispatch[]
-  commissioning    Commissioning?
-  tickets          SupportTicket[]
-  quotations       Quotation[]
-  invoices         Invoice[]
-  payments         Payment[]
-  expenses         Expense[]
-  serialRegistries SerialRegistry[]
+  customer            Customer             @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  siteSurvey          SiteSurvey?
+  serialRegistry      SerialRegistry[]
+  commissioningRecord CommissioningRecord?
+  supportTickets      SupportTicket[]
 
   @@index([customerId])
   @@index([status])
   @@map("projects")
 }
 
-// ================= 5. PROJECT PROGRESS =================
-
-model ProjectProgress {
-  id          Int      @id @default(autoincrement())
-  projectId   Int      @map("project_id")
-  progress    Int
-  description String?
-  date        DateTime @default(now())
-
-  project Project @relation(fields: [projectId], references: [id])
-
-  @@index([projectId])
-  @@map("project_progress")
-}
-
-// ================= 6. SITE SURVEY =================
+// ------------------------------------------------------
+// 4. SITE SURVEYS
+// ------------------------------------------------------
 
 model SiteSurvey {
-  id         Int @id @default(autoincrement())
-  projectId  Int @unique @map("project_id")
-  surveyorId Int @map("surveyor_id")
+  id                String   @id @default(uuid()) @db.Uuid
+  projectId         String   @unique @map("project_id") @db.Uuid
+  surveyorId        String   @map("surveyor_id") @db.Uuid
+  roofUsableAreaSqm Decimal  @map("roof_usable_area_sqm") @db.Decimal(8, 2)
+  tiltDegrees       Decimal  @map("tilt_degrees") @db.Decimal(4, 1)
+  azimuthDegrees    Decimal  @map("azimuth_degrees") @db.Decimal(4, 1)
+  cableRunMeters    Decimal  @map("cable_run_meters") @db.Decimal(6, 2)
+  sanctionedLoadKw  Decimal  @map("sanctioned_load_kw") @db.Decimal(6, 2)
+  isShadowFree      Boolean  @default(true) @map("is_shadow_free")
+  isViable          Boolean  @map("is_viable")
+  notes             String?
+  surveyedAt        DateTime @default(now()) @map("surveyed_at") @db.Timestamptz(6)
 
-  roofArea       Decimal @map("roof_area") @db.Decimal(8, 2)
-  tilt           Decimal @db.Decimal(5, 2)
-  azimuth        Decimal @db.Decimal(5, 2)
-  cableLength    Decimal @map("cable_length") @db.Decimal(8, 2)
-  sanctionedLoad Decimal @map("sanctioned_load") @db.Decimal(8, 2)
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  surveyor User    @relation(fields: [surveyorId], references: [id], onDelete: Restrict)
 
-  shadowFree Boolean @default(true) @map("shadow_free")
-  viable     Boolean
-
-  notes      String?
-  surveyDate DateTime @default(now()) @map("survey_date")
-
-  project  Project @relation(fields: [projectId], references: [id])
-  surveyor User    @relation(fields: [surveyorId], references: [id])
-
+  @@index([surveyorId])
   @@map("site_surveys")
 }
 
-// ================= 7. STOCK ITEM =================
+// ------------------------------------------------------
+// 5. STOCK ITEMS
+// ------------------------------------------------------
 
 model StockItem {
-  id       Int           @id @default(autoincrement())
-  sku      String        @unique
-  name     String
-  category ComponentType
+  id             String        @id @default(uuid()) @db.Uuid
+  sku            String        @unique
+  modelName      String        @map("model_name")
+  category       ComponentType
+  unitCost       Decimal       @map("unit_cost") @db.Decimal(10, 2)
+  quantityOnHand Int           @default(0) @map("quantity_on_hand")
+  warrantyMonths Int           @map("warranty_months")
 
-  unit     String  @default("PCS")
-  cost     Decimal @db.Decimal(12, 2)
-  quantity Decimal @default(0) @db.Decimal(12, 2)
-  minStock Decimal @default(0) @map("min_stock") @db.Decimal(12, 2)
+  serialRegistry SerialRegistry[]
 
-  warrantyMonths Int @map("warranty_months")
-
-  materials ProjectMaterial[]
-  serials   SerialRegistry[]
-
+  @@index([category])
   @@map("stock_items")
 }
 
-// ================= 8. PROJECT MATERIAL =================
-
-model ProjectMaterial {
-  id          Int @id @default(autoincrement())
-  projectId   Int @map("project_id")
-  stockItemId Int @map("stock_item_id")
-
-  planned  Decimal @default(0) @db.Decimal(12, 2)
-  used     Decimal @default(0) @db.Decimal(12, 2)
-  returned Decimal @default(0) @db.Decimal(12, 2)
-
-  unitCost  Decimal @map("unit_cost") @db.Decimal(12, 2)
-  totalCost Decimal @map("total_cost") @db.Decimal(12, 2)
-
-  project   Project   @relation(fields: [projectId], references: [id])
-  stockItem StockItem @relation(fields: [stockItemId], references: [id])
-
-  @@unique([projectId, stockItemId])
-  @@map("project_materials")
-}
-
-// ================= 9. SERIAL REGISTRY =================
+// ------------------------------------------------------
+// 6. SERIAL REGISTRY
+// ------------------------------------------------------
 
 model SerialRegistry {
-  id           Int    @id @default(autoincrement())
-  serialNumber String @unique @map("serial_number")
-  stockItemId  Int    @map("stock_item_id")
-  projectId    Int?   @map("project_id")
+  id                String         @id @default(uuid()) @db.Uuid
+  serialNumber      String         @unique @map("serial_number")
+  stockItemId       String         @map("stock_item_id") @db.Uuid
+  projectId         String?        @map("project_id") @db.Uuid
+  isDispatched      Boolean        @default(false) @map("is_dispatched")
+  dispatchedAt      DateTime?      @map("dispatched_at") @db.Timestamptz(6)
+  warrantyStartDate DateTime?      @map("warranty_start_date") @db.Date
+  warrantyEndDate   DateTime?      @map("warranty_end_date") @db.Date
+  status            WarrantyStatus @default(ACTIVE)
 
-  dispatched    Boolean   @default(false)
-  warrantyStart DateTime? @map("warranty_start") @db.Date
-  warrantyEnd   DateTime? @map("warranty_end") @db.Date
+  stockItem      StockItem       @relation(fields: [stockItemId], references: [id], onDelete: Restrict)
+  project        Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  supportTickets SupportTicket[]
 
-  status WarrantyStatus @default(ACTIVE)
-
-  stockItem StockItem @relation(fields: [stockItemId], references: [id])
-  project   Project?  @relation(fields: [projectId], references: [id])
-
+  @@index([stockItemId])
+  @@index([projectId])
+  @@index([status])
   @@map("serial_registry")
 }
 
-// ================= 10. DISPATCH =================
+// ------------------------------------------------------
+// 7. COMMISSIONING RECORDS
+// ------------------------------------------------------
 
-model Dispatch {
-  id        Int    @id @default(autoincrement())
-  number    String @unique
-  projectId Int    @map("project_id")
+model CommissioningRecord {
+  id                     String   @id @default(uuid()) @db.Uuid
+  projectId              String   @unique @map("project_id") @db.Uuid
+  leadTechnicianId       String   @map("lead_technician_id") @db.Uuid
+  vocVoltsMeasured       Decimal  @map("voc_volts_measured") @db.Decimal(6, 2)
+  iscAmpsMeasured        Decimal  @map("isc_amps_measured") @db.Decimal(6, 2)
+  earthingResistanceOhms Decimal  @map("earthing_resistance_ohms") @db.Decimal(5, 2)
+  completionPhotoUrl     String   @map("completion_photo_url")
+  customerSignatureSvg   String   @map("customer_signature_svg")
+  signedAt               DateTime @map("signed_at") @db.Timestamptz(6)
 
-  date        DateTime @default(now())
-  vehicle     String?
-  transporter String?
-  notes       String?
+  project        Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  leadTechnician User    @relation(fields: [leadTechnicianId], references: [id], onDelete: Restrict)
 
-  project Project @relation(fields: [projectId], references: [id])
-
-  @@map("dispatches")
+  @@index([leadTechnicianId])
+  @@map("commissioning_records")
 }
 
-// ================= 11. WORKER =================
-
-model Worker {
-  id     Int  @id @default(autoincrement())
-  userId Int? @unique @map("user_id")
-
-  code        String @unique
-  name        String
-  phone       String @unique
-  designation String
-
-  salaryType SalaryType @default(MONTHLY) @map("salary_type")
-
-  monthlySalary Decimal? @map("monthly_salary") @db.Decimal(12, 2)
-  dailyRate     Decimal? @map("daily_rate") @db.Decimal(12, 2)
-  projectRate   Decimal? @map("project_rate") @db.Decimal(12, 2)
-
-  joiningDate DateTime @map("joining_date") @db.Date
-  active      Boolean  @default(true)
-
-  user User? @relation(fields: [userId], references: [id])
-
-  projects             ProjectWorker[]
-  attendance           Attendance[]
-  workLogs             WorkLog[]
-  payrollItems         PayrollItem[]
-  leadCommissioning    Commissioning[]       @relation("LeadWorker")
-  commissioningWorkers CommissioningWorker[]
-
-  @@map("workers")
-}
-
-// ================= 12. PROJECT WORKERS =================
-
-model ProjectWorker {
-  id        Int @id @default(autoincrement())
-  projectId Int @map("project_id")
-  workerId  Int @map("worker_id")
-
-  role String?
-
-  project Project @relation(fields: [projectId], references: [id])
-  worker  Worker  @relation(fields: [workerId], references: [id])
-
-  @@unique([projectId, workerId])
-  @@map("project_workers")
-}
-
-// ================= 13. ATTENDANCE =================
-
-model Attendance {
-  id       Int      @id @default(autoincrement())
-  workerId Int      @map("worker_id")
-  date     DateTime @db.Date
-
-  status   AttendanceStatus @default(PRESENT)
-  checkIn  DateTime?        @map("check_in")
-  checkOut DateTime?        @map("check_out")
-
-  worker Worker @relation(fields: [workerId], references: [id])
-
-  @@unique([workerId, date])
-  @@map("attendance")
-}
-
-// ================= 14. WORK LOG =================
-
-model WorkLog {
-  id        Int @id @default(autoincrement())
-  workerId  Int @map("worker_id")
-  projectId Int @map("project_id")
-
-  date        DateTime @db.Date
-  hours       Decimal  @db.Decimal(5, 2)
-  overtime    Decimal  @default(0) @db.Decimal(5, 2)
-  description String?
-
-  worker  Worker  @relation(fields: [workerId], references: [id])
-  project Project @relation(fields: [projectId], references: [id])
-
-  @@index([workerId, date])
-  @@map("work_logs")
-}
-
-// ================= 15. PAYROLL =================
-
-model Payroll {
-  id    Int     @id @default(autoincrement())
-  month Int
-  year  Int
-  total Decimal @default(0) @db.Decimal(14, 2)
-
-  createdAt DateTime @default(now()) @map("created_at")
-
-  items PayrollItem[]
-
-  @@unique([month, year])
-  @@map("payroll")
-}
-
-model PayrollItem {
-  id        Int @id @default(autoincrement())
-  payrollId Int @map("payroll_id")
-  workerId  Int @map("worker_id")
-
-  basicSalary Decimal @default(0) @map("basic_salary") @db.Decimal(12, 2)
-  overtime    Decimal @default(0) @db.Decimal(12, 2)
-  allowance   Decimal @default(0) @db.Decimal(12, 2)
-  deduction   Decimal @default(0) @db.Decimal(12, 2)
-
-  netSalary  Decimal @default(0) @map("net_salary") @db.Decimal(12, 2)
-  paidAmount Decimal @default(0) @map("paid_amount") @db.Decimal(12, 2)
-
-  payroll Payroll @relation(fields: [payrollId], references: [id])
-  worker  Worker  @relation(fields: [workerId], references: [id])
-
-  @@unique([payrollId, workerId])
-  @@map("payroll_items")
-}
-
-// ================= 16. COMMISSIONING =================
-
-model Commissioning {
-  id           Int @id @default(autoincrement())
-  projectId    Int @unique @map("project_id")
-  leadWorkerId Int @map("lead_worker_id")
-
-  voc      Decimal @db.Decimal(8, 2)
-  isc      Decimal @db.Decimal(8, 2)
-  earthing Decimal @db.Decimal(8, 2)
-
-  photo     String?
-  signature String?
-  signedAt  DateTime?
-
-  notes String?
-
-  project    Project @relation(fields: [projectId], references: [id])
-  leadWorker Worker  @relation("LeadWorker", fields: [leadWorkerId], references: [id])
-
-  workers CommissioningWorker[]
-
-  @@map("commissioning")
-}
-
-model CommissioningWorker {
-  id              Int @id @default(autoincrement())
-  commissioningId Int @map("commissioning_id")
-  workerId        Int @map("worker_id")
-
-  commissioning Commissioning @relation(fields: [commissioningId], references: [id])
-  worker        Worker        @relation(fields: [workerId], references: [id])
-
-  @@unique([commissioningId, workerId])
-  @@map("commissioning_workers")
-}
-
-// ================= 17. SUPPORT TICKETS =================
+// ------------------------------------------------------
+// 8. SUPPORT TICKETS
+// ------------------------------------------------------
 
 model SupportTicket {
-  id        Int    @id @default(autoincrement())
-  number    String @unique
-  projectId Int    @map("project_id")
+  id                     String       @id @default(uuid()) @db.Uuid
+  ticketNumber           String       @unique @map("ticket_number")
+  projectId              String       @map("project_id") @db.Uuid
+  serialRegistryId       String?      @map("serial_registry_id") @db.Uuid
+  reportedFaultCode      String       @map("reported_fault_code")
+  description            String
+  status                 TicketStatus @default(OPEN)
+  isCoveredUnderWarranty Boolean      @map("is_covered_under_warranty")
+  billableAmount         Decimal      @default(0) @map("billable_amount") @db.Decimal(10, 2)
+  createdAt              DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  serialNumber String? @map("serial_number")
-  fault        String
-  description  String
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  serialRegistry SerialRegistry? @relation(fields: [serialRegistryId], references: [id], onDelete: SetNull)
 
-  status TicketStatus @default(OPEN)
-
-  warrantyCovered Boolean @default(false) @map("warranty_covered")
-  amount          Decimal @default(0) @db.Decimal(12, 2)
-
-  createdAt DateTime @default(now()) @map("created_at")
-
-  project Project        @relation(fields: [projectId], references: [id])
-  updates TicketUpdate[]
-
+  @@index([projectId])
+  @@index([serialRegistryId])
+  @@index([status])
   @@map("support_tickets")
-}
-
-model TicketUpdate {
-  id          Int          @id @default(autoincrement())
-  ticketId    Int          @map("ticket_id")
-  status      TicketStatus
-  description String
-  date        DateTime     @default(now())
-
-  ticket SupportTicket @relation(fields: [ticketId], references: [id])
-
-  @@map("ticket_updates")
-}
-
-// ================= 18. QUOTATIONS =================
-
-model Quotation {
-  id        Int    @id @default(autoincrement())
-  number    String @unique
-  projectId Int    @map("project_id")
-
-  amount   Decimal @db.Decimal(12, 2)
-  tax      Decimal @default(0) @db.Decimal(12, 2)
-  discount Decimal @default(0) @db.Decimal(12, 2)
-  total    Decimal @db.Decimal(12, 2)
-
-  date DateTime @default(now())
-
-  project Project @relation(fields: [projectId], references: [id])
-
-  @@map("quotations")
-}
-
-// ================= 19. INVOICES =================
-
-model Invoice {
-  id         Int    @id @default(autoincrement())
-  number     String @unique
-  customerId Int    @map("customer_id")
-  projectId  Int    @map("project_id")
-
-  amount Decimal  @db.Decimal(12, 2)
-  tax    Decimal  @default(0) @db.Decimal(12, 2)
-  total  Decimal  @db.Decimal(12, 2)
-  date   DateTime @default(now())
-
-  customer Customer @relation(fields: [customerId], references: [id])
-  project  Project  @relation(fields: [projectId], references: [id])
-
-  payments Payment[]
-
-  @@map("invoices")
-}
-
-// ================= 20. CUSTOMER PAYMENTS =================
-
-model Payment {
-  id         Int @id @default(autoincrement())
-  customerId Int @map("customer_id")
-  projectId  Int @map("project_id")
-  invoiceId  Int @map("invoice_id")
-
-  amount Decimal       @db.Decimal(12, 2)
-  method PaymentMethod
-  date   DateTime      @default(now())
-
-  customer Customer @relation(fields: [customerId], references: [id])
-  project  Project  @relation(fields: [projectId], references: [id])
-  invoice  Invoice  @relation(fields: [invoiceId], references: [id])
-
-  @@map("payments")
-}
-
-// ================= 21. BUSINESS EXPENSES =================
-
-model Expense {
-  id        Int  @id @default(autoincrement())
-  projectId Int? @map("project_id")
-
-  category    String
-  description String
-  amount      Decimal @db.Decimal(12, 2)
-
-  date    DateTime @default(now())
-  receipt String?
-
-  project Project? @relation(fields: [projectId], references: [id])
-
-  @@map("expenses")
 }

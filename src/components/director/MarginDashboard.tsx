@@ -4,23 +4,30 @@ import React, { useState, useEffect } from 'react';
 import { 
   TrendingUp, 
   Layers, 
-  ShieldAlert, 
   DollarSign, 
-  CheckCircle2, 
   Clock, 
-  Loader2 
+  Loader2,
+  PieChart
 } from 'lucide-react';
-import { fetchFinanceMarginsApi, FinanceMarginsData } from '@/lib/api';
+import { fetchAnalyticsMarginsApi, AnalyticsMarginsData } from '@/lib/api';
 
-const FALLBACK_DATA: FinanceMarginsData = {
+const FALLBACK_DATA: AnalyticsMarginsData = {
   totalRevenue: 2845000,
-  totalBomCost: 1620000,
-  laborCost: 280000,
-  overheadCost: 140000,
-  grossProfit: 805000,
+  totalEstimatedBOMCost: 1620000,
+  totalLaborCost: 280000,
+  totalOverheadCost: 140000,
   grossMarginPercent: 28.3,
-  activeProjectsCount: 18,
-  openWarrantyTickets: 3,
+  pipelineDistribution: {
+    leadReceived: 12,
+    surveyPending: 4,
+    surveyApproved: 6,
+    quoteIssued: 8,
+    orderConfirmed: 5,
+    dispatched: 3,
+    commissioned: 7,
+    completed: 24,
+    rejected: 2,
+  },
   projects: [
     {
       code: 'PRJ-2026-088',
@@ -46,71 +53,47 @@ const FALLBACK_DATA: FinanceMarginsData = {
       marginPct: 29.5,
       status: 'COMMISSIONED',
     },
-    {
-      code: 'PRJ-2026-090',
-      customer: 'Vertex Logistics Hub',
-      capacity: '5.0 kW',
-      invoice: 295000,
-      bom: 170000,
-      labor: 30000,
-      overhead: 15000,
-      profit: 80000,
-      marginPct: 27.1,
-      status: 'ORDER_CONFIRMED',
-    },
-    {
-      code: 'PRJ-2026-085',
-      customer: 'Sita Rama Estates',
-      capacity: '3.0 kW',
-      invoice: 195000,
-      bom: 110000,
-      labor: 20000,
-      overhead: 10000,
-      profit: 55000,
-      marginPct: 28.2,
-      status: 'COMPLETED',
-    },
   ],
 };
 
 export const MarginDashboard: React.FC = () => {
-  const [data, setData] = useState<FinanceMarginsData>(FALLBACK_DATA);
+  const [data, setData] = useState<AnalyticsMarginsData>(FALLBACK_DATA);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isLiveApi, setIsLiveApi] = useState<boolean>(false);
 
   useEffect(() => {
-    let mounted = true;
+    let ignore = false;
 
-    async function loadMargins() {
-      try {
-        const liveData = await fetchFinanceMarginsApi();
-        if (mounted && liveData && liveData.projects) {
+    fetchAnalyticsMarginsApi()
+      .then((liveData) => {
+        if (!ignore && liveData && liveData.projects) {
           setData(liveData);
           setIsLiveApi(true);
         }
-      } catch {
-        // Retains FALLBACK_DATA if API endpoint is still in development
-        if (mounted) setIsLiveApi(false);
-      } finally {
-        if (mounted) setIsLoading(false);
-      }
-    }
+      })
+      .catch(() => {
+        // Retain fallback data if endpoint is not seeded yet
+      })
+      .finally(() => {
+        if (!ignore) setIsLoading(false);
+      });
 
-    loadMargins();
     return () => {
-      mounted = false;
+      ignore = true;
     };
   }, []);
+
+  const totalActivePipeline = Object.values(data.pipelineDistribution).reduce((a, b) => a + b, 0);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-enterprise-charcoal">
-            Director Financial & Operational Oversight
+            Executive Margin & Operations Analytics
           </h2>
           <p className="text-xs text-enterprise-smoke">
-            Real-time telemetry per GET /api/finance/margins (Section 5.1)
+            Real-time telemetry from GET /api/analytics/margins
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -127,140 +110,99 @@ export const MarginDashboard: React.FC = () => {
                   : 'bg-slate-100 text-enterprise-smoke border-enterprise-border'
               }`}
             >
-              {isLiveApi ? '● Live DB Stream' : '○ Standalone Mock'}
+              {isLiveApi ? '● Live /api/analytics/margins' : '○ Fallback Simulation'}
             </span>
           )}
         </div>
       </div>
 
+      {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-enterprise-surface p-4 rounded-lg border border-enterprise-border shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-enterprise-smoke uppercase tracking-wider">
-              Total Gross Profit
+              Total Contract Revenue
             </span>
             <div className="w-8 h-8 rounded bg-green-50 text-enterprise-forest flex items-center justify-center">
               <DollarSign className="w-4 h-4" />
             </div>
           </div>
           <div className="text-2xl font-bold text-enterprise-charcoal font-mono mt-2">
-            ₹{data.grossProfit.toLocaleString('en-IN')}
+            ₹{data.totalRevenue.toLocaleString('en-IN')}
           </div>
           <div className="flex items-center gap-1 text-[11px] text-enterprise-forest font-semibold mt-1">
             <TrendingUp className="w-3.5 h-3.5" />
-            {data.grossMarginPercent}% blended margin
+            {data.grossMarginPercent}% gross margin target
           </div>
         </div>
 
         <div className="bg-enterprise-surface p-4 rounded-lg border border-enterprise-border shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-enterprise-smoke uppercase tracking-wider">
-              Active Project Pipeline
+              Estimated BOM Outlay
             </span>
             <div className="w-8 h-8 rounded bg-slate-100 text-enterprise-blue flex items-center justify-center">
-              <Layers className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-2xl font-bold text-enterprise-charcoal font-mono mt-2">
-            {data.activeProjectsCount}
-          </div>
-          <div className="text-[11px] text-enterprise-smoke mt-1">
-            WIP tracking across all 9 finite states
-          </div>
-        </div>
-
-        <div className="bg-enterprise-surface p-4 rounded-lg border border-enterprise-border shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-enterprise-smoke uppercase tracking-wider">
-              BOM & Labor Outlay
-            </span>
-            <div className="w-8 h-8 rounded bg-slate-100 text-enterprise-charcoal flex items-center justify-center">
               <Clock className="w-4 h-4" />
             </div>
           </div>
           <div className="text-2xl font-bold text-enterprise-charcoal font-mono mt-2">
-            ₹{(data.totalBomCost + data.laborCost).toLocaleString('en-IN')}
+            ₹{data.totalEstimatedBOMCost.toLocaleString('en-IN')}
           </div>
           <div className="text-[11px] text-enterprise-smoke mt-1">
-            COGS strictly linked to stock registry
+            Calculated via package BOM engine
           </div>
         </div>
 
         <div className="bg-enterprise-surface p-4 rounded-lg border border-enterprise-border shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-enterprise-smoke uppercase tracking-wider">
-              Warranty Claims
+              Gross Margin %
             </span>
-            <div className="w-8 h-8 rounded bg-amber-50 text-enterprise-amber flex items-center justify-center">
-              <ShieldAlert className="w-4 h-4" />
+            <div className="w-8 h-8 rounded bg-slate-100 text-enterprise-charcoal flex items-center justify-center">
+              <TrendingUp className="w-4 h-4 text-enterprise-forest" />
             </div>
           </div>
-          <div className="text-2xl font-bold text-enterprise-amber font-mono mt-2">
-            {data.openWarrantyTickets} Active
+          <div className="text-2xl font-bold text-enterprise-forest font-mono mt-2">
+            {data.grossMarginPercent}%
           </div>
-          <div className="text-[11px] text-enterprise-forest font-semibold mt-1 flex items-center gap-1">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            100% within 20-year coverage period
+          <div className="text-[11px] text-enterprise-smoke mt-1">
+            Target benchmark: &ge; 28.0%
+          </div>
+        </div>
+
+        <div className="bg-enterprise-surface p-4 rounded-lg border border-enterprise-border shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-enterprise-smoke uppercase tracking-wider">
+              Pipeline Volume
+            </span>
+            <div className="w-8 h-8 rounded bg-slate-100 text-enterprise-smoke flex items-center justify-center">
+              <Layers className="w-4 h-4 text-enterprise-blue" />
+            </div>
+          </div>
+          <div className="text-2xl font-bold text-enterprise-charcoal font-mono mt-2">
+            {totalActivePipeline} Projects
+          </div>
+          <div className="text-[11px] text-enterprise-smoke mt-1">
+            Across 9 finite lifecycle states
           </div>
         </div>
       </div>
 
-      <div className="bg-enterprise-surface rounded-lg border border-enterprise-border overflow-hidden shadow-sm">
-        <div className="p-4 border-b border-enterprise-border flex items-center justify-between bg-slate-50/50">
-          <div>
-            <h3 className="text-sm font-bold text-enterprise-charcoal">
-              Project Unit Economics & Margin Formula
-            </h3>
-            <p className="text-[11px] text-enterprise-smoke font-mono">
-              Formula: Profit = Invoice - (BOM Cost + Labor + Overhead)
-            </p>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-slate-50 border-b border-enterprise-border text-enterprise-smoke font-semibold uppercase tracking-wider">
-                <th className="py-3 px-4">Project</th>
-                <th className="py-3 px-4">Capacity</th>
-                <th className="py-3 px-4 text-right">Invoice (A)</th>
-                <th className="py-3 px-4 text-right">BOM (B)</th>
-                <th className="py-3 px-4 text-right">Labor (C)</th>
-                <th className="py-3 px-4 text-right">Overhead (D)</th>
-                <th className="py-3 px-4 text-right">Gross Profit</th>
-                <th className="py-3 px-4 text-right">Margin %</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-enterprise-border">
-              {data.projects.map((prj) => (
-                <tr key={prj.code} className="hover:bg-slate-50/60">
-                  <td className="py-3 px-4">
-                    <div className="font-semibold text-enterprise-charcoal">{prj.customer}</div>
-                    <div className="font-mono text-[10px] text-enterprise-smoke">{prj.code}</div>
-                  </td>
-                  <td className="py-3 px-4 font-medium text-enterprise-charcoal">{prj.capacity}</td>
-                  <td className="py-3 px-4 text-right font-mono text-enterprise-charcoal">
-                    ₹{prj.invoice.toLocaleString('en-IN')}
-                  </td>
-                  <td className="py-3 px-4 text-right font-mono text-enterprise-smoke">
-                    ₹{prj.bom.toLocaleString('en-IN')}
-                  </td>
-                  <td className="py-3 px-4 text-right font-mono text-enterprise-smoke">
-                    ₹{prj.labor.toLocaleString('en-IN')}
-                  </td>
-                  <td className="py-3 px-4 text-right font-mono text-enterprise-smoke">
-                    ₹{prj.overhead.toLocaleString('en-IN')}
-                  </td>
-                  <td className="py-3 px-4 text-right font-mono font-bold text-enterprise-forest">
-                    ₹{prj.profit.toLocaleString('en-IN')}
-                  </td>
-                  <td className="py-3 px-4 text-right font-mono font-semibold text-enterprise-charcoal">
-                    {prj.marginPct}%
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Pipeline Distribution Counters */}
+      <div className="bg-enterprise-surface p-5 rounded-lg border border-enterprise-border shadow-sm">
+        <h3 className="text-xs font-bold text-enterprise-charcoal uppercase tracking-wider mb-4 flex items-center gap-2">
+          <PieChart className="w-4 h-4 text-enterprise-blue" />
+          Pipeline Distribution Counters
+        </h3>
+        <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-3 text-center">
+          {Object.entries(data.pipelineDistribution).map(([stateKey, count]) => (
+            <div key={stateKey} className="p-2.5 rounded bg-enterprise-bg border border-enterprise-border">
+              <div className="font-mono text-base font-bold text-enterprise-charcoal">{count}</div>
+              <div className="text-[10px] text-enterprise-smoke uppercase font-medium mt-1 truncate">
+                {stateKey.replace(/([A-Z])/g, '_$1')}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
