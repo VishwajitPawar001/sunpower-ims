@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { success, ZodError } from 'zod';
+import { ZodError } from 'zod';
 
 export type ApiErrorCode =
   | 'VALIDATION_ERROR'
@@ -8,7 +8,10 @@ export type ApiErrorCode =
   | 'NOT_FOUND'
   | 'INVALID_STATE_TRANSITION'
   | 'TRANSACTION_CONFLICT'
-  | 'INTERNAL_SERVER_ERROR';
+  | 'INTERNAL_SERVER_ERROR'
+  | 'CONFLICT'
+  | 'SERIAL_NOT_FOUND'
+  | 'SERIAL_ALREADY_ASSIGNED';
 
 export class ApiError extends Error {
   public readonly statusCode: number;

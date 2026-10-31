@@ -12,8 +12,6 @@ import {
   Eye, 
   EyeOff, 
   ShieldCheck,
-  Radio,
-  Sparkles,
   Zap
 } from 'lucide-react';
 import { loginApi, ApiError } from '@/lib/api';
@@ -60,23 +58,28 @@ export default function LoginPage() {
         case 'SURVEYOR':
           router.push('/dashboard?role=SURVEYOR&view=surveyor-form');
           break;
+        case 'SUPPORT':
+          router.push('/dashboard?role=SUPPORT&view=support-tickets');
+          break;
         case 'ADMIN':
         case 'DIRECTOR':
+          router.push('/dashboard?role=DIRECTOR&view=director-margins');
+          break;
         case 'SALES':
         default:
-          router.push('/dashboard?role=DIRECTOR&view=director-margins');
+          router.push('/dashboard?role=SALES&view=sales-leads');
           break;
       }
     } catch (err) {
       if (err instanceof ApiError) {
         setErrorMessage(err.message);
       } else {
-        // Safe offline presentation fallback
         const fallbackName = email.split('@')[0] || 'Operator';
         let fallbackRole = 'SALES';
         if (email.includes('technician')) fallbackRole = 'TECHNICIAN';
         else if (email.includes('warehouse')) fallbackRole = 'WAREHOUSE';
         else if (email.includes('surveyor')) fallbackRole = 'SURVEYOR';
+        else if (email.includes('support')) fallbackRole = 'SUPPORT';
         else if (email.includes('admin') || email.includes('director')) fallbackRole = 'DIRECTOR';
 
         localStorage.setItem('sunpower_auth_token', 'mock-session-token');
@@ -89,8 +92,12 @@ export default function LoginPage() {
           router.push('/dashboard?role=WAREHOUSE&view=warehouse-dispatch');
         } else if (fallbackRole === 'SURVEYOR') {
           router.push('/dashboard?role=SURVEYOR&view=surveyor-form');
-        } else {
+        } else if (fallbackRole === 'SUPPORT') {
+          router.push('/dashboard?role=SUPPORT&view=support-tickets');
+        } else if (fallbackRole === 'DIRECTOR') {
           router.push('/dashboard?role=DIRECTOR&view=director-margins');
+        } else {
+          router.push('/dashboard?role=SALES&view=sales-leads');
         }
       }
     } finally {
@@ -236,7 +243,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Quick Demo Persona Switcher (For Mentor & Judge Reviews) */}
+        {/* Quick Demo Persona Switcher */}
         <div className="mt-6 pt-5 border-t border-slate-800">
           <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono mb-2.5">
             <span className="flex items-center gap-1 text-amber-400">
@@ -250,8 +257,16 @@ export default function LoginPage() {
               onClick={() => setDemoPersona('director@sunpower.local')}
               className="p-1.5 rounded-lg bg-slate-950 hover:bg-slate-900 border border-slate-800 hover:border-amber-400/40 text-slate-300 text-left transition-colors cursor-pointer"
             >
-              <div className="font-bold text-white">Director (Admin)</div>
-              <div className="text-slate-500 truncate">Executive P&L</div>
+              <div className="font-bold text-white">Director (Executive)</div>
+              <div className="text-slate-500 truncate">P&L & Full Access</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setDemoPersona('sales@sunpower.local')}
+              className="p-1.5 rounded-lg bg-slate-950 hover:bg-slate-900 border border-slate-800 hover:border-amber-400/40 text-slate-300 text-left transition-colors cursor-pointer"
+            >
+              <div className="font-bold text-white">Commercial Sales</div>
+              <div className="text-slate-500 truncate">CRM & Proposal BOM</div>
             </button>
             <button
               type="button"
@@ -276,6 +291,14 @@ export default function LoginPage() {
             >
               <div className="font-bold text-white">Lead Technician</div>
               <div className="text-slate-500 truncate">Vector Sign-Off</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setDemoPersona('support@sunpower.local')}
+              className="p-1.5 rounded-lg bg-slate-950 hover:bg-slate-900 border border-slate-800 hover:border-amber-400/40 text-slate-300 text-left transition-colors cursor-pointer"
+            >
+              <div className="font-bold text-white">Service Support</div>
+              <div className="text-slate-500 truncate">SLA Incident Desk</div>
             </button>
           </div>
         </div>

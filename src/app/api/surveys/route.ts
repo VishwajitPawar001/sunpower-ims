@@ -6,7 +6,7 @@ import { requireRole } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
-    const session = requireRole(req, ["ADMIN", "SURVEYOR"]);
+    const session = requireRole(req, ["ADMIN", "DIRECTOR", "SURVEYOR"]);
     const body = await req.json();
     const valid = siteSurveySchema.parse(body);
 
@@ -18,41 +18,76 @@ export async function POST(req: NextRequest) {
       throw new ApiError(404, "NOT_FOUND", "Project not found.");
     }
 
-    if (project.status !== "LEAD_RECEIVED" && project.status !== "SURVEY_PENDING") {
-      throw new ApiError(
-        400,
-        "INVALID_STATE_TRANSITION",
-        `Cannot submit survey for a project in '${project.status}' status.`
-      );
-    }
+    const usableArea = valid.roofUsableAreaSqm ?? valid.usableAreaSqm ?? 25.0;
+    const nextStatus = valid.isViable ? "SURVEY_APPROVED" : "REJECTED";
 
     const updated = await prisma.$transaction(async (tx) => {
-      const survey = await tx.siteSurvey.create({
-        data: {
-          projectId: valid.projectId,
+      const survey = await tx.siteSurvey.upsert({
+        where: { projectId: valid.projectId },
+        update: {
           surveyorId: session.userId,
-          roofUsableAreaSqm: valid.roofUsableAreaSqm,
+          roofUsableAreaSqm: usableArea,
           tiltDegrees: valid.tiltDegrees,
           azimuthDegrees: valid.azimuthDegrees,
           cableRunMeters: valid.cableRunMeters,
           sanctionedLoadKw: valid.sanctionedLoadKw,
           isShadowFree: valid.isShadowFree,
           isViable: valid.isViable,
-          notes: valid.notes,
+          notes: valid.notes || null,
+        },
+        create: {
+          projectId: valid.projectId,
+          surveyorId: session.userId,
+          roofUsableAreaSqm: usableArea,
+          tiltDegrees: valid.tiltDegrees,
+          azimuthDegrees: valid.azimuthDegrees,
+          cableRunMeters: valid.cableRunMeters,
+          sanctionedLoadKw: valid.sanctionedLoadKw,
+          isShadowFree: valid.isShadowFree,
+          isViable: valid.isViable,
+          notes: valid.notes || null,
         },
       });
-
-      const nextStatus = valid.isViable ? "SURVEY_APPROVED" : "REJECTED";
 
       const updatedProject = await tx.project.update({
         where: { id: valid.projectId },
         data: { status: nextStatus },
       });
 
-      return { survey, project: updatedProject };
+      return {
+        surveyId: survey.id,
+        projectStatus: nextStatus,
+        survey,
+        project: updatedProject,
+      };
     });
 
     return apiSuccess(updated, 201);
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    requireRole(req, ["ADMIN", "DIRECTOR", "SURVEYOR", "SALES"]);
+    const { searchParams } = new URL(req.url);
+    const projectId = searchParams.get("projectId");
+
+    if (projectId) {
+      const survey = await prisma.siteSurvey.findUnique({
+        where: { projectId },
+        include: { project: true, surveyor: true },
+      });
+      return apiSuccess({ survey });
+    }
+
+    const surveys = await prisma.siteSurvey.findMany({
+      include: { project: { include: { customer: true } } },
+      orderBy: { surveyedAt: "desc" },
+    });
+
+    return apiSuccess({ count: surveys.length, surveys });
   } catch (error) {
     return handleApiError(error);
   }

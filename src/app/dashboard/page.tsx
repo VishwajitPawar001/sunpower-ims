@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/layout/Sidebar';
-import { LeadsTable, INITIAL_LEADS } from '@/components/sales/LeadsTable';
+import { LeadsTable } from '@/components/sales/LeadsTable';
 import { QuoteGenerator } from '@/components/sales/QuoteGenerator';
 import { SurveyorForm } from '@/components/surveyor/SurveyorForm';
 import { DispatchScanner } from '@/components/warehouse/DispatchScanner';
@@ -11,6 +11,7 @@ import { SignoffCanvas } from '@/components/technician/SignoffCanvas';
 import { MarginDashboard } from '@/components/director/MarginDashboard';
 import { TicketDesk } from '@/components/support/TicketDesk';
 import { UserRole, ProjectLead } from '@/types/solar';
+import { getLeadsApi } from '@/lib/api';
 import { 
   Building2, 
   Compass, 
@@ -22,7 +23,9 @@ import {
   Moon, 
   Play, 
   Pause, 
-  Zap 
+  Zap,
+  LogOut,
+  FolderOpen
 } from 'lucide-react';
 
 const subscribe = () => () => {};
@@ -33,16 +36,17 @@ function mapToUserRole(roleStr: string | null): UserRole {
   if (roleStr === 'SURVEYOR') return 'SURVEYOR';
   if (roleStr === 'WAREHOUSE') return 'WAREHOUSE';
   if (roleStr === 'TECHNICIAN') return 'TECHNICIAN';
+  if (roleStr === 'SUPPORT') return 'SUPPORT';
   return 'SALES';
 }
 
 const STAGES = [
-  { id: 'sales-leads', label: '1. Commercial CRM', code: 'CRM', icon: Building2 },
-  { id: 'surveyor-form', label: '2. Site Feasibility', code: 'SRV', icon: Compass },
-  { id: 'sales-quotes', label: '3. Engineering BOM', code: 'BOM', icon: Cpu },
-  { id: 'warehouse-dispatch', label: '4. Warehouse Dispatch', code: 'DSP', icon: Boxes },
-  { id: 'technician-signoff', label: '5. Field Commissioning', code: 'SIG', icon: ClipboardCheck },
-  { id: 'director-margins', label: '6. Margin & P&L Audit', code: 'FIN', icon: TrendingUp },
+  { id: 'sales-leads', label: '1. Commercial CRM', allowedRoles: ['SALES', 'DIRECTOR'], icon: Building2 },
+  { id: 'surveyor-form', label: '2. Site Feasibility', allowedRoles: ['SURVEYOR', 'DIRECTOR'], icon: Compass },
+  { id: 'sales-quotes', label: '3. Engineering BOM', allowedRoles: ['SALES', 'DIRECTOR'], icon: Cpu },
+  { id: 'warehouse-dispatch', label: '4. Warehouse Dispatch', allowedRoles: ['WAREHOUSE', 'DIRECTOR'], icon: Boxes },
+  { id: 'technician-signoff', label: '5. Field Commissioning', allowedRoles: ['TECHNICIAN', 'DIRECTOR'], icon: ClipboardCheck },
+  { id: 'director-margins', label: '6. Margin & P&L Audit', allowedRoles: ['DIRECTOR'], icon: TrendingUp },
 ];
 
 export default function DashboardPage() {
@@ -55,13 +59,43 @@ export default function DashboardPage() {
 
   const [currentRole, setCurrentRole] = useState<UserRole>('SALES');
   const [activeView, setActiveView] = useState<string>('sales-leads');
-  const [activeProject, setActiveProject] = useState<ProjectLead>(INITIAL_LEADS[0]);
+  const [projects, setProjects] = useState<ProjectLead[]>([]);
+  const [activeProject, setActiveProject] = useState<ProjectLead | null>(null);
   const [userName, setUserName] = useState<string>('Operations User');
 
   const [theme, setTheme] = useState<'cockpit' | 'daylight'>('cockpit');
   const [generationKw, setGenerationKw] = useState(14.82);
   const [isAutoTouring, setIsAutoTouring] = useState(false);
 
+  // Load real projects from database API
+  useEffect(() => {
+    let ignore = false;
+    getLeadsApi()
+      .then((data) => {
+        if (!ignore && Array.isArray(data) && data.length > 0) {
+          setProjects(data);
+          setActiveProject((prev) => {
+            if (!prev) return data[0];
+            const updated = data.find((p) => p.id === prev.id);
+            return updated || data[0];
+          });
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load project dossiers from API:', err);
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  // Filter pipeline stepper stages based on operator permissions
+  const authorizedStages = STAGES.filter(
+    (step) => currentRole === 'DIRECTOR' || step.allowedRoles.includes(currentRole)
+  );
+
+  // Live IoT telemetry: Subtle array yield variation
   useEffect(() => {
     const interval = setInterval(() => {
       setGenerationKw((prev) => {
@@ -72,18 +106,20 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // Demo auto-tour: Cycles through authorized stages
   useEffect(() => {
-    if (!isAutoTouring) return;
+    if (!isAutoTouring || authorizedStages.length <= 1) return;
     const interval = setInterval(() => {
       setActiveView((prev) => {
-        const currentIndex = STAGES.findIndex((s) => s.id === prev);
-        const nextIndex = (currentIndex + 1) % STAGES.length;
-        return STAGES[nextIndex].id;
+        const currentIndex = authorizedStages.findIndex((s) => s.id === prev);
+        const nextIndex = (currentIndex + 1) % authorizedStages.length;
+        return authorizedStages[nextIndex].id;
       });
     }, 4500);
     return () => clearInterval(interval);
-  }, [isAutoTouring]);
+  }, [isAutoTouring, authorizedStages]);
 
+  // Session hydration
   useEffect(() => {
     const timer = setTimeout(() => {
       if (typeof window === 'undefined') return;
@@ -156,10 +192,12 @@ export default function DashboardPage() {
         if (canSwitchRoles) setCurrentRole('SALES');
         setActiveView('sales-quotes');
         break;
+      case 'QUOTE_ISSUED':
       case 'ORDER_CONFIRMED':
         if (canSwitchRoles) setCurrentRole('WAREHOUSE');
         setActiveView('warehouse-dispatch');
         break;
+      case 'DISPATCHED':
       case 'COMMISSIONED':
       case 'COMPLETED':
         if (canSwitchRoles) setCurrentRole('TECHNICIAN');
@@ -169,6 +207,16 @@ export default function DashboardPage() {
         setActiveView('sales-leads');
         break;
     }
+  };
+
+  const handleProjectUpdated = (updated: ProjectLead) => {
+    setActiveProject(updated);
+    setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+  };
+
+  const handleLeadCreated = (newLead: ProjectLead) => {
+    setProjects((prev) => [newLead, ...prev]);
+    setActiveProject(newLead);
   };
 
   if (!isMounted) {
@@ -202,13 +250,11 @@ export default function DashboardPage() {
             isDark ? 'bg-[#060A12]/80 border-slate-800/60' : 'bg-slate-50 border-slate-200 text-slate-600'
           }`}>
             <div className="flex items-center gap-6">
-              {/* Grid Interconnect Status */}
               <div className="flex items-center gap-2 text-emerald-400 font-semibold tracking-wider">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                 <span>GRID INTERCONNECT: 50.02 Hz</span>
               </div>
 
-              {/* Sine Waveform */}
               <div className="hidden lg:flex items-center gap-2 text-slate-400">
                 <span className="text-[10px] tracking-wider">INVERTER SINE:</span>
                 <svg className="w-16 h-3 text-amber-500" viewBox="0 0 100 20">
@@ -222,7 +268,6 @@ export default function DashboardPage() {
                 </svg>
               </div>
 
-              {/* Live Yield Counter */}
               <div className="hidden sm:flex items-center gap-2">
                 <Zap className="w-3.5 h-3.5 text-amber-400" />
                 <span className="text-slate-400">Array Yield:</span>
@@ -230,7 +275,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Right HUD Controls */}
+            {/* Right HUD Controls: Tour, Theme, Operator Profile & Logout */}
             <div className="flex items-center gap-3">
               <button
                 type="button"
@@ -269,34 +314,67 @@ export default function DashboardPage() {
                 )}
               </button>
 
-              <div className="flex items-center gap-2 pl-3 border-l border-slate-800">
-                <span className="text-slate-400 font-sans text-xs">Operator:</span>
-                <span className="font-semibold font-sans text-xs text-amber-400">{userName}</span>
+              <div className="flex items-center gap-3 pl-3 border-l border-slate-800">
+                <div className="text-right hidden sm:block">
+                  <span className="text-slate-400 font-sans text-[10px] block leading-none">Operator</span>
+                  <span className="font-semibold font-sans text-xs text-amber-400">{userName}</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  title="Sign out of current account"
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-sans font-semibold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 transition-colors cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Logout</span>
+                </button>
               </div>
             </div>
           </div>
 
-          {/* Interactive 6-Stage EPC Pipeline Stepper */}
+          {/* EPC Pipeline & Assigned Project Selector */}
           <div className="px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            {/* Customer Dossier Selector: Dynamically populated from Database */}
             <div className="flex items-center gap-3 shrink-0">
               <div className={`px-3.5 py-1.5 rounded-lg border flex flex-col ${
                 isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-50 border-slate-200'
               }`}>
-                <span className="text-[10px] text-slate-400 uppercase tracking-widest font-mono">Active Dossier</span>
-                <span className="text-xs font-bold font-mono flex items-center gap-2">
-                  <span className={isDark ? 'text-white' : 'text-slate-900'}>
-                    {activeProject?.projectCode || 'SP-2026-001'}
-                  </span>
-                  <span className="text-slate-500 font-normal">•</span>
-                  <span className="text-amber-500 font-sans font-semibold">
-                    {activeProject?.customerName || 'Industrial Lead'}
-                  </span>
-                </span>
+                <div className="flex items-center gap-1.5 text-[10px] text-slate-400 uppercase tracking-widest font-mono">
+                  <FolderOpen className="w-3 h-3 text-amber-400" />
+                  <span>Live Database Dossier</span>
+                </div>
+                
+                <select
+                  value={activeProject?.id || ''}
+                  onChange={(e) => {
+                    const selected = projects.find((lead) => lead.id === e.target.value);
+                    if (selected) handleSelectProject(selected);
+                  }}
+                  className={`text-xs font-bold font-mono outline-none cursor-pointer mt-0.5 ${
+                    isDark ? 'bg-transparent text-amber-400' : 'bg-transparent text-slate-900'
+                  }`}
+                >
+                  {projects.length === 0 ? (
+                    <option value="">Connecting database ledger...</option>
+                  ) : (
+                    projects.map((lead) => (
+                      <option 
+                        key={lead.id} 
+                        value={lead.id}
+                        className={isDark ? 'bg-[#0B111E] text-white font-sans' : 'bg-white text-slate-800 font-sans'}
+                      >
+                        {lead.projectCode} • {lead.customerName} ({lead.capacityKw} kWp - {lead.status})
+                      </option>
+                    ))
+                  )}
+                </select>
               </div>
             </div>
 
+            {/* Stepper Buttons: Filtered by Operator Role Clearance */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
-              {STAGES.map((step, idx) => {
+              {authorizedStages.map((step, idx) => {
                 const Icon = step.icon;
                 const isCurrent = activeView === step.id;
 
@@ -320,7 +398,7 @@ export default function DashboardPage() {
                       <span>{step.label}</span>
                     </button>
 
-                    {idx < STAGES.length - 1 && (
+                    {idx < authorizedStages.length - 1 && (
                       <div className={`w-3 h-[2px] shrink-0 ${isDark ? 'bg-slate-800' : 'bg-slate-300'}`} />
                     )}
                   </React.Fragment>
@@ -330,7 +408,7 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        {/* Dynamic Canvas */}
+        {/* Dynamic Canvas with Radial Lighting */}
         <main className={`flex-1 overflow-y-auto p-6 md:p-8 relative transition-colors duration-200 ${
           isDark ? 'bg-[#080D1A]' : 'bg-slate-50'
         }`}>
@@ -343,14 +421,48 @@ export default function DashboardPage() {
 
           <div className="max-w-7xl mx-auto relative z-10">
             {activeView === 'sales-leads' && (
-              <LeadsTable onSelectProject={handleSelectProject} />
+              <LeadsTable
+                onSelectProject={handleSelectProject}
+                leads={projects}
+                onLeadCreated={handleLeadCreated}
+              />
             )}
-            {activeView === 'sales-quotes' && <QuoteGenerator />}
-            {activeView === 'surveyor-form' && <SurveyorForm />}
-            {activeView === 'warehouse-dispatch' && <DispatchScanner />}
-            {activeView === 'technician-signoff' && <SignoffCanvas />}
+            {activeView === 'sales-quotes' && (
+              <QuoteGenerator
+                key={activeProject?.id || 'empty-quote'}
+                project={activeProject}
+                onProjectUpdated={handleProjectUpdated}
+              />
+            )}
+            {activeView === 'surveyor-form' && (
+              <SurveyorForm
+                key={activeProject?.id || 'empty-survey'}
+                project={activeProject}
+                onProjectUpdated={handleProjectUpdated}
+              />
+            )}
+            {activeView === 'warehouse-dispatch' && (
+              <DispatchScanner
+                key={activeProject?.id || 'empty-dispatch'}
+                project={activeProject}
+                onProjectUpdated={handleProjectUpdated}
+              />
+            )}
+            {activeView === 'technician-signoff' && (
+              <SignoffCanvas
+                key={activeProject?.id || 'empty-signoff'}
+                project={activeProject}
+                onProjectUpdated={handleProjectUpdated}
+              />
+            )}
             {activeView === 'director-margins' && <MarginDashboard />}
-            {activeView === 'support-tickets' && <TicketDesk />}
+            {activeView === 'support-tickets' && (
+              <TicketDesk
+                key={activeProject?.id || 'empty-ticket'}
+                project={activeProject}
+                onProjectUpdated={handleProjectUpdated}
+              />
+            )}
           </div>
         </main>
       </div>

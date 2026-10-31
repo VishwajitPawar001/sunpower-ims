@@ -5,47 +5,30 @@ import {
   Headphones, 
   CheckCircle2, 
   Clock, 
-  AlertTriangle, 
   Loader2, 
   X, 
   ShieldAlert, 
   Activity, 
-  Zap, 
   Search, 
   Filter, 
-  ArrowRight,
-  Wrench,
-  AlertOctagon
+  ArrowRight, 
+  Wrench, 
+  AlertOctagon,
+  Plus,
+  RotateCw
 } from 'lucide-react';
-import { getTicketsApi, updateTicketStatusApi, SupportTicket, ApiError } from '@/lib/api';
+import { getTicketsApi, updateTicketStatusApi, createTicketApi, SupportTicket, ApiError } from '@/lib/api';
+import { ProjectLead } from '@/types/solar';
 
-const MOCK_TICKETS: SupportTicket[] = [
-  {
-    id: 't-001',
-    ticketCode: 'TCK-2026-012',
-    projectId: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
-    projectCode: 'PRJ-2026-088',
-    customerName: 'Kaveri Industrial Mills',
-    issueDescription: 'Inverter error code E03 (Grid overvoltage trip) during peak generation hours.',
-    priority: 'HIGH',
-    status: 'OPEN',
-    createdAt: '2026-10-30',
-  },
-  {
-    id: 't-002',
-    ticketCode: 'TCK-2026-013',
-    projectId: '8cb3897b-9442-45e0-9988-bb31f79f2910',
-    projectCode: 'PRJ-2026-089',
-    customerName: 'Dr. Aris Thorne',
-    issueDescription: 'Customer requesting secondary sign-off copy for state subsidy documentation.',
-    priority: 'LOW',
-    status: 'OPEN',
-    createdAt: '2026-10-31',
-  },
-];
+interface TicketDeskProps {
+  project?: ProjectLead | null;
+  onProjectUpdated?: (updatedProject: ProjectLead) => void;
+}
 
-export const TicketDesk: React.FC = () => {
-  const [tickets, setTickets] = useState<SupportTicket[]>(MOCK_TICKETS);
+export const TicketDesk: React.FC<TicketDeskProps> = ({
+  project,
+}) => {
+  const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'OPEN' | 'IN_PROGRESS' | 'RESOLVED'>('ALL');
@@ -55,24 +38,45 @@ export const TicketDesk: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  useEffect(() => {
-    let ignore = false;
+  // New ticket modal
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [newFaultCode, setNewFaultCode] = useState('E03-GRID-OVERVOLT');
+  const [newDesc, setNewDesc] = useState('');
 
+  const loadTickets = () => {
+    setIsLoading(true);
     getTicketsApi()
       .then((data) => {
-        if (!ignore && Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           setTickets(data);
         }
       })
-      .catch(() => {
-        // Fallback to initial mock tickets
+      .catch((err) => {
+        console.error('Failed to load tickets:', err);
       })
       .finally(() => {
-        if (!ignore) setIsLoading(false);
+        setIsLoading(false);
       });
+  };
 
+  useEffect(() => {
+    let isMounted = true;
+    getTicketsApi()
+      .then((data) => {
+        if (isMounted && Array.isArray(data)) {
+          setTickets(data);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load tickets:', err);
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      });
     return () => {
-      ignore = true;
+      isMounted = false;
     };
   }, []);
 
@@ -96,6 +100,30 @@ export const TicketDesk: React.FC = () => {
         );
         setSelectedTicket(null);
       }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCreateTicket = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDesc.trim()) return;
+
+    setIsSubmitting(true);
+    setErrorMsg(null);
+
+    try {
+      const created = await createTicketApi({
+        projectId: project?.id,
+        reportedFaultCode: newFaultCode,
+        description: newDesc,
+        priority: newFaultCode.includes('03') ? 'HIGH' : 'MEDIUM',
+      });
+      setTickets((prev) => [created, ...prev]);
+      setIsCreateOpen(false);
+      setNewDesc('');
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Failed to create ticket.');
     } finally {
       setIsSubmitting(false);
     }
@@ -132,17 +160,19 @@ export const TicketDesk: React.FC = () => {
   const renderStatusBadge = (status: string) => {
     switch (status) {
       case 'RESOLVED':
+      case 'CLOSED':
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
             <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-            RESOLVED
+            {status}
           </span>
         );
       case 'IN_PROGRESS':
+      case 'INVESTIGATING':
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
             <Clock className="w-3 h-3 text-amber-400 animate-spin" />
-            IN_PROGRESS
+            {status}
           </span>
         );
       case 'OPEN':
@@ -158,17 +188,17 @@ export const TicketDesk: React.FC = () => {
 
   const filteredTickets = tickets.filter((t) => {
     const matchesSearch =
-      t.ticketCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      t.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      t.issueDescription.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      t.projectCode.toLowerCase().includes(searchTerm.toLowerCase());
+      (t.ticketCode || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (t.customerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (t.issueDescription || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (t.projectCode || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'ALL' || t.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
   const openCount = tickets.filter((t) => t.status === 'OPEN').length;
   const highPriorityCount = tickets.filter((t) => t.priority === 'HIGH' || t.priority === 'CRITICAL').length;
-  const resolvedCount = tickets.filter((t) => t.status === 'RESOLVED').length;
+  const resolvedCount = tickets.filter((t) => t.status === 'RESOLVED' || t.status === 'CLOSED').length;
 
   return (
     <div className="space-y-6 text-slate-200">
@@ -191,6 +221,26 @@ export const TicketDesk: React.FC = () => {
               </p>
             </div>
           </div>
+        </div>
+
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={loadTickets}
+            title="Refresh tickets"
+            className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-mono transition-colors"
+          >
+            <RotateCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsCreateOpen(true)}
+            className="flex items-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold px-4 py-2.5 rounded-lg text-xs shadow-lg shadow-amber-500/20 transition-all cursor-pointer active:scale-95"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+            Log SLA Incident Ticket
+          </button>
         </div>
       </div>
 
@@ -413,6 +463,89 @@ export const TicketDesk: React.FC = () => {
                 Commit Status Change
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Log Ticket Modal */}
+      {isCreateOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-[#0B111E] border border-slate-700/80 rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 text-slate-200">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                  <Plus className="w-4 h-4" />
+                </div>
+                <h3 className="font-bold text-sm text-white">Log SLA Incident Ticket</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCreateOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateTicket} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Target Customer Project Dossier
+                </label>
+                <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 font-mono text-amber-400">
+                  {project ? `${project.projectCode} • ${project.customerName}` : 'All Commercial Accounts'}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Inverter SCADA Fault Code
+                </label>
+                <select
+                  value={newFaultCode}
+                  onChange={(e) => setNewFaultCode(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:border-amber-400 focus:outline-none cursor-pointer"
+                >
+                  <option value="E03-GRID-OVERVOLT">E03 (Grid Overvoltage Trip)</option>
+                  <option value="E07-ISO-RESISTANCE">E07 (Low Array Insulation Resistance)</option>
+                  <option value="E12-DC-INJECTION">E12 (Excess DC Injection into Grid)</option>
+                  <option value="COMM-SYNC-ISSUE">COMM-SYNC (Smart Meter Optical Link Timeout)</option>
+                  <option value="DOC-REQUEST">DOC-REQUEST (Subsidy Certificate Dispatch)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  Detailed Diagnostic Observation *
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  value={newDesc}
+                  onChange={(e) => setNewDesc(e.target.value)}
+                  placeholder="Record string voltages, ambient roof temperature, grid frequency at trip..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white placeholder:text-slate-500 focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateOpen(false)}
+                  className="px-3.5 py-2 text-xs font-medium text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 text-xs font-bold text-slate-950 bg-amber-500 hover:bg-amber-400 rounded-lg shadow-md shadow-amber-500/20 flex items-center gap-1.5 disabled:opacity-50 cursor-pointer transition-all active:scale-95"
+                >
+                  {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  Register SLA Incident
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

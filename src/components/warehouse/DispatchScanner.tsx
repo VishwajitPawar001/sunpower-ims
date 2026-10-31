@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Barcode,
   Scan,
@@ -17,39 +17,62 @@ import {
   ArrowRight,
   PackageCheck
 } from 'lucide-react';
-import { SerialVerificationItem } from '@/types/solar';
-import { scanDispatchBarcodeApi, ApiError } from '@/lib/api';
+import { SerialVerificationItem, ProjectLead } from '@/types/solar';
+import { scanDispatchBarcodeApi, getWarehouseStockApi, ApiError } from '@/lib/api';
 
-const INITIAL_BOM: SerialVerificationItem[] = [
-  {
-    sku: 'INV-HYB-5K-01',
-    category: 'INVERTER',
-    modelName: 'SunPower Solax 5kW Hybrid Inverter IP65',
-    requiredQty: 1,
-    scannedSerials: [],
-  },
-  {
-    sku: 'BAT-LFP-48-100',
-    category: 'BATTERY',
-    modelName: 'SunPower LiFePO4 5.12kWh Storage Pack',
-    requiredQty: 1,
-    scannedSerials: [],
-  },
-  {
-    sku: 'PV-TOP-550-BIF',
-    category: 'PANEL',
-    modelName: 'Mono PERC Bifacial 550W Module (Tier 1)',
-    requiredQty: 4,
-    scannedSerials: [],
-  },
-];
+interface DispatchScannerProps {
+  project?: ProjectLead | null;
+  onProjectUpdated?: (updatedProject: ProjectLead) => void;
+}
 
-export const DispatchScanner: React.FC = () => {
-  const [projectId] = useState<string>('3fa85f64-5717-4562-b3fc-2c963f66afa6');
-  const [items, setItems] = useState<SerialVerificationItem[]>(INITIAL_BOM);
+function computeProjectBOM(project?: ProjectLead | null): SerialVerificationItem[] {
+  const cap = project ? Number(project.capacityKw) : 5.0;
+  const isOffGrid = project?.systemType === 'OFF_GRID';
+  const panelCount = Math.max(2, Math.ceil((cap * 1000) / 550));
+
+  const bom: SerialVerificationItem[] = [
+    {
+      sku: isOffGrid ? 'INV-HYB-5K-01' : 'INV-GRID-5K',
+      category: 'INVERTER',
+      modelName: `SunPower ${cap}kW ${isOffGrid ? 'Hybrid' : 'Grid-Tied'} Inverter IP65`,
+      requiredQty: 1,
+      scannedSerials: [],
+    },
+    {
+      sku: 'PV-TOP-550-BIF',
+      category: 'PANEL',
+      modelName: 'Mono PERC Bifacial 550W Module (Tier 1)',
+      requiredQty: panelCount,
+      scannedSerials: [],
+    },
+  ];
+
+  if (isOffGrid) {
+    bom.push({
+      sku: 'BAT-LFP-48-100',
+      category: 'BATTERY',
+      modelName: 'SunPower LiFePO4 5.12kWh Storage Pack',
+      requiredQty: cap >= 4 ? 2 : 1,
+      scannedSerials: [],
+    });
+  }
+
+  return bom;
+}
+
+export const DispatchScanner: React.FC<DispatchScannerProps> = ({
+  project,
+  onProjectUpdated,
+}) => {
+  const currentProjectId = project?.id || '';
+
+  const [items, setItems] = useState<SerialVerificationItem[]>(() => computeProjectBOM(project));
   const [barcodeInput, setBarcodeInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [recentlyScannedSerial, setRecentlyScannedSerial] = useState<string | null>(null);
+  const [availableDbSerials, setAvailableDbSerials] = useState<string[]>([
+    'INV-9028-X5', 'BAT-LFP-099', 'PV-550-A101', 'PV-550-A102'
+  ]);
 
   // Modal alert for 400/404 barcode mismatch errors
   const [modalAlert, setModalAlert] = useState<{
@@ -58,17 +81,40 @@ export const DispatchScanner: React.FC = () => {
     code: string;
   } | null>(null);
 
+  useEffect(() => {
+    let ignore = false;
+    getWarehouseStockApi(project?.id)
+      .then((res) => {
+        if (!ignore && res.availableSerials && res.availableSerials.length > 0) {
+          setAvailableDbSerials(res.availableSerials.map((s) => s.serialNumber));
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      ignore = true;
+    };
+  }, [project?.id]);
+
   const totalRequired = items.reduce((acc, curr) => acc + curr.requiredQty, 0);
   const totalScanned = items.reduce((acc, curr) => acc + curr.scannedSerials.length, 0);
-  const fulfillmentPercent = Math.round((totalScanned / totalRequired) * 100);
-  const isFullyDispatched = totalRequired === totalScanned;
+  const fulfillmentPercent = totalRequired > 0 ? Math.round((totalScanned / totalRequired) * 100) : 0;
+  const isFullyDispatched = totalRequired > 0 && totalRequired === totalScanned;
 
   const handleScan = async (e: React.FormEvent) => {
     e.preventDefault();
     const serial = barcodeInput.trim().toUpperCase();
     if (!serial) return;
 
-    // Check client-side duplicate verification
+    if (!currentProjectId) {
+      setModalAlert({
+        title: 'No Project Dossier Selected',
+        message: 'Please select an assigned customer dossier before scanning hardware serials.',
+        code: 'NO_PROJECT_SELECTED',
+      });
+      return;
+    }
+
     const isLocalDuplicate = items.some((item) =>
       item.scannedSerials.includes(serial)
     );
@@ -85,7 +131,7 @@ export const DispatchScanner: React.FC = () => {
     setIsLoading(true);
 
     try {
-      await scanDispatchBarcodeApi({ projectId, serialNumber: serial });
+      await scanDispatchBarcodeApi({ projectId: currentProjectId, serialNumber: serial });
 
       let matchedIndex = -1;
       if (serial.startsWith('INV-')) {
@@ -108,6 +154,13 @@ export const DispatchScanner: React.FC = () => {
 
       setRecentlyScannedSerial(serial);
       setBarcodeInput('');
+
+      if (project && onProjectUpdated && (totalScanned + 1 >= totalRequired)) {
+        onProjectUpdated({
+          ...project,
+          status: 'DISPATCHED',
+        });
+      }
     } catch (err) {
       if (err instanceof ApiError) {
         setModalAlert({
@@ -119,7 +172,6 @@ export const DispatchScanner: React.FC = () => {
           code: err.code,
         });
       } else {
-        // Safe fallback simulation for offline testing
         let matchedIndex = -1;
         if (serial.startsWith('INV-')) {
           matchedIndex = items.findIndex((i) => i.category === 'INVERTER');
@@ -207,7 +259,7 @@ export const DispatchScanner: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-amber-400/10 text-amber-400 border border-amber-400/20">
-                  DISPATCH ORDER: PRJ-2026-090
+                  DISPATCH: {project?.projectCode || 'SELECT PROJECT'}
                 </span>
                 <span className={`text-[11px] font-mono font-semibold px-2 py-0.5 rounded border ${
                   isFullyDispatched
@@ -223,6 +275,11 @@ export const DispatchScanner: React.FC = () => {
               <h2 className="text-xl font-bold text-white mt-1.5 tracking-tight flex items-center gap-2">
                 Hardware Serial Registry & Optical Scanner
               </h2>
+              {project && (
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Destination: <span className="text-slate-200 font-semibold">{project.customerName}</span> • {project.address}
+                </p>
+              )}
             </div>
           </div>
 
@@ -263,7 +320,7 @@ export const DispatchScanner: React.FC = () => {
               <Barcode className="w-5 h-5 text-slate-500 absolute left-3.5 top-2.5" />
               <input
                 type="text"
-                placeholder="Scan physical hardware barcode or simulate (e.g. INV-9028-X5, BAT-LFP-099)..."
+                placeholder="Scan physical hardware barcode or click an inventory test unit below..."
                 value={barcodeInput}
                 onChange={(e) => setBarcodeInput(e.target.value)}
                 disabled={isFullyDispatched || isLoading}
@@ -284,39 +341,21 @@ export const DispatchScanner: React.FC = () => {
             </button>
           </div>
 
-          {/* Quick-Scan Simulation Chips */}
+          {/* Quick-Scan Simulation Chips from real database */}
           <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px]">
             <span className="text-slate-400 font-mono text-xs">
-              Quick Test Injection:
+              Available in Warehouse Stock:
             </span>
-            <button
-              type="button"
-              onClick={() => setBarcodeInput('INV-9028-X5')}
-              className="px-2.5 py-1 rounded-md bg-slate-900 hover:bg-slate-800 font-mono text-slate-300 border border-slate-700/80 cursor-pointer transition-colors"
-            >
-              + INV-9028-X5
-            </button>
-            <button
-              type="button"
-              onClick={() => setBarcodeInput('BAT-LFP-099')}
-              className="px-2.5 py-1 rounded-md bg-slate-900 hover:bg-slate-800 font-mono text-slate-300 border border-slate-700/80 cursor-pointer transition-colors"
-            >
-              + BAT-LFP-099
-            </button>
-            <button
-              type="button"
-              onClick={() => setBarcodeInput('PV-550-A101')}
-              className="px-2.5 py-1 rounded-md bg-slate-900 hover:bg-slate-800 font-mono text-slate-300 border border-slate-700/80 cursor-pointer transition-colors"
-            >
-              + PV-550-A101
-            </button>
-            <button
-              type="button"
-              onClick={() => setBarcodeInput('PV-550-A102')}
-              className="px-2.5 py-1 rounded-md bg-slate-900 hover:bg-slate-800 font-mono text-slate-300 border border-slate-700/80 cursor-pointer transition-colors"
-            >
-              + PV-550-A102
-            </button>
+            {availableDbSerials.slice(0, 6).map((sn) => (
+              <button
+                key={sn}
+                type="button"
+                onClick={() => setBarcodeInput(sn)}
+                className="px-2.5 py-1 rounded-md bg-slate-900 hover:bg-slate-800 font-mono text-slate-300 border border-slate-700/80 cursor-pointer transition-colors"
+              >
+                + {sn}
+              </button>
+            ))}
           </div>
 
           {recentlyScannedSerial && (
@@ -417,6 +456,11 @@ export const DispatchScanner: React.FC = () => {
 
             <button
               type="button"
+              onClick={() => {
+                if (project && onProjectUpdated) {
+                  onProjectUpdated({ ...project, status: 'DISPATCHED' });
+                }
+              }}
               className="px-5 py-2.5 rounded-lg text-xs font-bold text-slate-950 bg-emerald-400 hover:bg-emerald-300 shadow-lg shadow-emerald-400/20 flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
             >
               <Truck className="w-4 h-4 stroke-[2]" />

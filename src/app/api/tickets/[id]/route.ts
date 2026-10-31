@@ -9,7 +9,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    requireRole(req, ["ADMIN", "SUPPORT", "TECHNICIAN"]);
+    requireRole(req, ["ADMIN", "DIRECTOR", "SUPPORT", "TECHNICIAN"]);
     const { id: ticketId } = await params;
     const body = await req.json();
     const valid = updateTicketSchema.parse(body);

@@ -11,73 +11,30 @@ import {
   Loader2, 
   X, 
   AlertCircle,
-  Zap,
   Activity,
   MapPin,
   Phone,
   ShieldCheck,
-  CheckCircle2
+  CheckCircle2,
+  Zap
 } from 'lucide-react';
 import { getLeadsApi, createLeadApi, ApiError } from '@/lib/api';
 
-export const INITIAL_LEADS: ProjectLead[] = [
-  {
-    id: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
-    projectCode: 'PRJ-2026-088',
-    customerName: 'Kaveri Industrial Mills',
-    phone: '+91 98401 22345',
-    address: 'Plot 41, Nacharam IDA, Hyderabad',
-    capacityKw: 5.0,
-    systemType: 'ON_GRID',
-    status: 'SURVEY_APPROVED',
-    agreedPrice: 285000,
-    createdAt: '2026-10-28',
-  },
-  {
-    id: '8cb3897b-9442-45e0-9988-bb31f79f2910',
-    projectCode: 'PRJ-2026-089',
-    customerName: 'Dr. Aris Thorne',
-    phone: '+91 97110 44521',
-    address: 'Bungalow 14, Jubilee Hills, Hyderabad',
-    capacityKw: 3.5,
-    systemType: 'OFF_GRID',
-    status: 'COMMISSIONED',
-    agreedPrice: 240000,
-    createdAt: '2026-10-29',
-  },
-  {
-    id: 'b6f04f2d-0b1a-4710-85f0-619f7004f280',
-    projectCode: 'PRJ-2026-090',
-    customerName: 'Vertex Logistics Hub',
-    phone: '+91 99882 11029',
-    address: 'Sector 3, Gachibowli, Hyderabad',
-    capacityKw: 5.0,
-    systemType: 'ON_GRID',
-    status: 'ORDER_CONFIRMED',
-    agreedPrice: 295000,
-    createdAt: '2026-10-30',
-  },
-  {
-    id: 'f726cb72-46a2-4a55-8947-cc59ffbe2162',
-    projectCode: 'PRJ-2026-091',
-    customerName: 'Radha Krishna Residency',
-    phone: '+91 94401 88320',
-    address: 'Street 4, Habsiguda, Hyderabad',
-    capacityKw: 2.0,
-    systemType: 'ON_GRID',
-    status: 'SURVEY_PENDING',
-    agreedPrice: 135000,
-    createdAt: '2026-10-31',
-  },
-];
+export const INITIAL_LEADS: ProjectLead[] = [];
 
 interface LeadsTableProps {
   onSelectProject?: (project: ProjectLead) => void;
+  leads?: ProjectLead[];
+  onLeadCreated?: (newLead: ProjectLead) => void;
 }
 
-export const LeadsTable: React.FC<LeadsTableProps> = ({ onSelectProject }) => {
-  const [leads, setLeads] = useState<ProjectLead[]>(INITIAL_LEADS);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+export const LeadsTable: React.FC<LeadsTableProps> = ({
+  onSelectProject,
+  leads: parentLeads,
+  onLeadCreated,
+}) => {
+  const [internalLeads, setInternalLeads] = useState<ProjectLead[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(!parentLeads || parentLeads.length === 0);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<ProjectStatus | 'ALL'>('ALL');
 
@@ -94,27 +51,30 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({ onSelectProject }) => {
   });
 
   useEffect(() => {
-    let ignore = false;
+    if (parentLeads && parentLeads.length > 0) {
+      return;
+    }
 
+    let ignore = false;
     getLeadsApi()
       .then((data) => {
-        if (!ignore && Array.isArray(data) && data.length > 0) {
-          setLeads(data);
+        if (!ignore && Array.isArray(data)) {
+          setInternalLeads(data);
         }
       })
-      .catch(() => {
-        // Fallback to INITIAL_LEADS if backend API is not yet running
+      .catch((err) => {
+        console.error('Failed to load leads:', err);
       })
       .finally(() => {
-        if (!ignore) {
-          setIsLoading(false);
-        }
+        if (!ignore) setIsLoading(false);
       });
 
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [parentLeads]);
+
+  const displayedLeads = parentLeads && parentLeads.length > 0 ? parentLeads : internalLeads;
 
   const handleCreateLead = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,7 +83,10 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({ onSelectProject }) => {
 
     try {
       const created = await createLeadApi(newLead);
-      setLeads((prev) => [created, ...prev]);
+      setInternalLeads((prev) => [created, ...prev]);
+      if (onLeadCreated) {
+        onLeadCreated(created);
+      }
       setIsModalOpen(false);
       setNewLead({ customerName: '', phone: '', address: '', capacityKw: 5.0, systemType: 'ON_GRID' });
     } catch (err) {
@@ -137,7 +100,6 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({ onSelectProject }) => {
     }
   };
 
-  // High-contrast industrial LED badges
   const renderStatusBadge = (status: ProjectStatus) => {
     switch (status) {
       case 'SURVEY_APPROVED':
@@ -160,6 +122,20 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({ onSelectProject }) => {
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/30">
             <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
             ORDER_CONFIRMED
+          </span>
+        );
+      case 'DISPATCHED':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/30">
+            <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+            DISPATCHED
+          </span>
+        );
+      case 'QUOTE_ISSUED':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">
+            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+            QUOTE_ISSUED
           </span>
         );
       case 'SURVEY_PENDING':
@@ -187,19 +163,18 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({ onSelectProject }) => {
     }
   };
 
-  const filtered = leads.filter((lead) => {
+  const filtered = displayedLeads.filter((lead) => {
     const matchesSearch =
-      lead.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.projectCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.address.toLowerCase().includes(searchTerm.toLowerCase());
+      (lead.customerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (lead.projectCode || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (lead.address || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesFilter = filterStatus === 'ALL' || lead.status === filterStatus;
     return matchesSearch && matchesFilter;
   });
 
-  // Calculate telemetry metrics
-  const totalCapacity = leads.reduce((acc, l) => acc + (l.capacityKw || 0), 0);
-  const totalValuation = leads.reduce((acc, l) => acc + (l.agreedPrice || 0), 0);
-  const completedCount = leads.filter((l) => l.status === 'COMMISSIONED' || l.status === 'COMPLETED').length;
+  const totalCapacity = displayedLeads.reduce((acc, l) => acc + (Number(l.capacityKw) || 0), 0);
+  const totalValuation = displayedLeads.reduce((acc, l) => acc + (Number(l.agreedPrice) || 0), 0);
+  const completedCount = displayedLeads.filter((l) => l.status === 'COMMISSIONED' || l.status === 'COMPLETED').length;
 
   return (
     <div className="space-y-6">
@@ -241,7 +216,7 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({ onSelectProject }) => {
             <span>Active Pipeline</span>
             <Activity className="w-3.5 h-3.5 text-blue-400" />
           </div>
-          <div className="text-2xl font-bold font-mono text-white mt-1.5">{leads.length}</div>
+          <div className="text-2xl font-bold font-mono text-white mt-1.5">{displayedLeads.length}</div>
           <div className="text-[11px] text-slate-400 mt-0.5">Commercial Dossiers</div>
         </div>
 
@@ -297,7 +272,9 @@ export const LeadsTable: React.FC<LeadsTableProps> = ({ onSelectProject }) => {
             <option value="LEAD_RECEIVED">LEAD_RECEIVED</option>
             <option value="SURVEY_PENDING">SURVEY_PENDING</option>
             <option value="SURVEY_APPROVED">SURVEY_APPROVED</option>
+            <option value="QUOTE_ISSUED">QUOTE_ISSUED</option>
             <option value="ORDER_CONFIRMED">ORDER_CONFIRMED</option>
+            <option value="DISPATCHED">DISPATCHED</option>
             <option value="COMMISSIONED">COMMISSIONED</option>
             <option value="REJECTED">REJECTED</option>
           </select>

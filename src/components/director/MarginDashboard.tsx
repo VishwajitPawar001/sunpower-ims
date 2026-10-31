@@ -10,11 +10,7 @@ import {
   PieChart,
   BarChart3,
   ShieldCheck,
-  Zap,
-  ArrowUpRight,
-  Activity,
-  CheckCircle2,
-  Building2
+  Activity
 } from 'lucide-react';
 import { fetchAnalyticsMarginsApi, AnalyticsMarginsData } from '@/lib/api';
 
@@ -25,66 +21,17 @@ const FALLBACK_DATA: AnalyticsMarginsData = {
   totalOverheadCost: 140000,
   grossMarginPercent: 28.3,
   pipelineDistribution: {
-    leadReceived: 12,
-    surveyPending: 4,
-    surveyApproved: 6,
-    quoteIssued: 8,
-    orderConfirmed: 5,
-    dispatched: 3,
-    commissioned: 7,
-    completed: 24,
-    rejected: 2,
+    leadReceived: 1,
+    surveyPending: 1,
+    surveyApproved: 1,
+    quoteIssued: 1,
+    orderConfirmed: 1,
+    dispatched: 0,
+    commissioned: 1,
+    completed: 0,
+    rejected: 0,
   },
-  projects: [
-    {
-      code: 'PRJ-2026-088',
-      customer: 'Kaveri Industrial Mills',
-      capacity: '5.0 kW',
-      invoice: 285000,
-      bom: 165000,
-      labor: 28000,
-      overhead: 14000,
-      profit: 78000,
-      marginPct: 27.3,
-      status: 'SURVEY_APPROVED',
-    },
-    {
-      code: 'PRJ-2026-089',
-      customer: 'Dr. Aris Thorne',
-      capacity: '3.5 kW',
-      invoice: 240000,
-      bom: 135000,
-      labor: 22000,
-      overhead: 12000,
-      profit: 71000,
-      marginPct: 29.5,
-      status: 'COMMISSIONED',
-    },
-    {
-      code: 'PRJ-2026-090',
-      customer: 'Vertex Logistics Hub',
-      capacity: '5.0 kW',
-      invoice: 295000,
-      bom: 172000,
-      labor: 28000,
-      overhead: 14000,
-      profit: 81000,
-      marginPct: 27.5,
-      status: 'ORDER_CONFIRMED',
-    },
-    {
-      code: 'PRJ-2026-091',
-      customer: 'Radha Krishna Residency',
-      capacity: '2.0 kW',
-      invoice: 135000,
-      bom: 78000,
-      labor: 14000,
-      overhead: 7000,
-      profit: 36000,
-      marginPct: 26.7,
-      status: 'SURVEY_PENDING',
-    },
-  ],
+  projects: [],
 };
 
 export const MarginDashboard: React.FC = () => {
@@ -97,13 +44,13 @@ export const MarginDashboard: React.FC = () => {
 
     fetchAnalyticsMarginsApi()
       .then((liveData) => {
-        if (!ignore && liveData && liveData.projects) {
+        if (!ignore && liveData && liveData.pipelineDistribution) {
           setData(liveData);
           setIsLiveApi(true);
         }
       })
-      .catch(() => {
-        // Retain fallback simulation
+      .catch((err) => {
+        console.error('Failed to load margins telemetry:', err);
       })
       .finally(() => {
         if (!ignore) setIsLoading(false);
@@ -118,9 +65,10 @@ export const MarginDashboard: React.FC = () => {
   const netProfitTotal = data.totalRevenue - (data.totalEstimatedBOMCost + data.totalLaborCost + data.totalOverheadCost);
 
   // Cost stack percentages
-  const bomPct = Math.round((data.totalEstimatedBOMCost / data.totalRevenue) * 100);
-  const laborPct = Math.round((data.totalLaborCost / data.totalRevenue) * 100);
-  const overheadPct = Math.round((data.totalOverheadCost / data.totalRevenue) * 100);
+  const safeRevenue = data.totalRevenue > 0 ? data.totalRevenue : 1;
+  const bomPct = Math.round((data.totalEstimatedBOMCost / safeRevenue) * 100);
+  const laborPct = Math.round((data.totalLaborCost / safeRevenue) * 100);
+  const overheadPct = Math.round((data.totalOverheadCost / safeRevenue) * 100);
 
   return (
     <div className="space-y-6 text-slate-200">
@@ -160,7 +108,7 @@ export const MarginDashboard: React.FC = () => {
               }`}
             >
               <span className={`w-2 h-2 rounded-full ${isLiveApi ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
-              {isLiveApi ? 'LEDGER: LIVE API SYNC' : 'LEDGER: SIMULATION RUN'}
+              {isLiveApi ? 'LEDGER: LIVE API SYNC' : 'LEDGER: INITIALIZING'}
             </span>
           )}
         </div>
@@ -217,7 +165,7 @@ export const MarginDashboard: React.FC = () => {
             {totalActivePipeline} Contracts
           </div>
           <div className="text-[11px] text-slate-400 font-mono mt-0.5">
-            9 verified EPC lifecycle stages
+            Active EPC lifecycle dossiers
           </div>
         </div>
       </div>
@@ -235,22 +183,22 @@ export const MarginDashboard: React.FC = () => {
         {/* Multi-segment cost bar */}
         <div className="w-full h-3 bg-slate-900 rounded-full overflow-hidden flex border border-slate-800">
           <div 
-            style={{ width: `${bomPct}%` }} 
+            style={{ width: `${Math.max(5, bomPct)}%` }} 
             className="h-full bg-amber-500" 
             title={`Hardware BOM: ${bomPct}%`} 
           />
           <div 
-            style={{ width: `${laborPct}%` }} 
+            style={{ width: `${Math.max(5, laborPct)}%` }} 
             className="h-full bg-blue-500" 
             title={`Labor & Racking: ${laborPct}%`} 
           />
           <div 
-            style={{ width: `${overheadPct}%` }} 
+            style={{ width: `${Math.max(3, overheadPct)}%` }} 
             className="h-full bg-slate-600" 
             title={`Overhead: ${overheadPct}%`} 
           />
           <div 
-            style={{ width: `${data.grossMarginPercent}%` }} 
+            style={{ width: `${Math.max(5, data.grossMarginPercent)}%` }} 
             className="h-full bg-emerald-400" 
             title={`Net Margin: ${data.grossMarginPercent}%`} 
           />

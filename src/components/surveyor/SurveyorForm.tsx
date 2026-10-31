@@ -7,22 +7,32 @@ import {
   AlertTriangle, 
   Loader2, 
   SunMedium, 
-  Zap, 
   Gauge, 
   ShieldAlert, 
   FileText,
   Check
 } from 'lucide-react';
 import { submitSurveyApi, SiteSurveyPayload } from '@/lib/api';
+import { ProjectLead, ProjectStatus } from '@/types/solar';
 
-export const SurveyorForm: React.FC = () => {
+interface SurveyorFormProps {
+  project?: ProjectLead | null;
+  onProjectUpdated?: (updatedProject: ProjectLead) => void;
+}
+
+export const SurveyorForm: React.FC<SurveyorFormProps> = ({
+  project,
+  onProjectUpdated,
+}) => {
+  const currentProjectId = project?.id || '';
+
   const [formData, setFormData] = useState<SiteSurveyPayload>({
-    projectId: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
-    usableAreaSqm: 42.5,
+    projectId: currentProjectId,
+    usableAreaSqm: project ? Number(project.capacityKw) * 10 : 35.0,
     tiltDegrees: 18.0,
     azimuthDegrees: 185.0,
     cableRunMeters: 28.0,
-    sanctionedLoadKw: 5.0,
+    sanctionedLoadKw: project ? Number(project.capacityKw) : 5.0,
     isShadowFree: true,
     isViable: true,
     notes: 'South-facing RCC slab. Parapet shadow-free from 09:00 to 16:00.',
@@ -31,20 +41,33 @@ export const SurveyorForm: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'SUCCESS' | 'ERROR'; text: string } | null>(null);
 
-  const estimatedCapacityKw = (formData.usableAreaSqm / 10).toFixed(1);
+  const usableArea = formData.usableAreaSqm ?? 35.0;
+  const estimatedCapacityKw = (usableArea / 10).toFixed(1);
   const azimuthDrift = Math.abs(formData.azimuthDegrees - 180);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.projectId) {
+      setStatusMessage({ type: 'ERROR', text: 'Please select an assigned customer dossier to submit survey.' });
+      return;
+    }
+
     setIsLoading(true);
     setStatusMessage(null);
 
     try {
       const res = await submitSurveyApi(formData);
+      const nextStatus = (res.projectStatus as ProjectStatus) || 'SURVEY_APPROVED';
       setStatusMessage({
         type: 'SUCCESS',
-        text: `Survey validated successfully. Project transitioned to [${res.projectStatus ?? 'SURVEY_APPROVED'}].`,
+        text: `Survey validated successfully. Project transitioned to [${nextStatus}].`,
       });
+      if (project && onProjectUpdated) {
+        onProjectUpdated({
+          ...project,
+          status: nextStatus,
+        });
+      }
     } catch (err) {
       setStatusMessage({
         type: 'ERROR',
@@ -56,6 +79,11 @@ export const SurveyorForm: React.FC = () => {
   };
 
   const handleReject = async () => {
+    if (!formData.projectId) {
+      setStatusMessage({ type: 'ERROR', text: 'Please select an assigned customer dossier to reject survey.' });
+      return;
+    }
+
     setIsLoading(true);
     setStatusMessage(null);
 
@@ -64,10 +92,17 @@ export const SurveyorForm: React.FC = () => {
 
     try {
       const res = await submitSurveyApi(rejectedData);
+      const nextStatus = (res.projectStatus as ProjectStatus) || 'REJECTED';
       setStatusMessage({
         type: 'SUCCESS',
-        text: `Roof marked structurally unviable. State transitioned to [${res.projectStatus ?? 'REJECTED'}].`,
+        text: `Roof marked structurally unviable. State transitioned to [${nextStatus}].`,
       });
+      if (project && onProjectUpdated) {
+        onProjectUpdated({
+          ...project,
+          status: nextStatus,
+        });
+      }
     } catch (err) {
       setStatusMessage({
         type: 'ERROR',
@@ -89,7 +124,7 @@ export const SurveyorForm: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-amber-400/10 text-amber-400 border border-amber-400/20">
-                  DOSSIER: {formData.projectId.substring(0, 13)}...
+                  {project ? `${project.projectCode} • ${project.customerName}` : 'SELECT DOSSIER'}
                 </span>
                 <span className="text-[10px] font-mono bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700 font-normal">
                   STAGE 02
@@ -98,6 +133,11 @@ export const SurveyorForm: React.FC = () => {
               <h2 className="text-xl font-bold text-white mt-1.5 tracking-tight flex items-center gap-2">
                 Rooftop Solar Feasibility & 3D Azimuth Assessment
               </h2>
+              {project && (
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Address: <span className="text-slate-200">{project.address}</span> (Target Capacity: {project.capacityKw} kWp)
+                </p>
+              )}
             </div>
           </div>
 
@@ -154,7 +194,7 @@ export const SurveyorForm: React.FC = () => {
                     step="0.1"
                     min="1"
                     max="10000"
-                    value={formData.usableAreaSqm}
+                    value={formData.usableAreaSqm || 35}
                     onChange={(e) =>
                       setFormData({ ...formData, usableAreaSqm: parseFloat(e.target.value) || 0 })
                     }
@@ -214,7 +254,7 @@ export const SurveyorForm: React.FC = () => {
 
           <div>
             <div className="text-xs font-mono uppercase tracking-wider text-amber-400 font-semibold mb-3 flex items-center gap-1.5">
-              <Zap className="w-3.5 h-3.5" />
+              <Gauge className="w-3.5 h-3.5" />
               Section 2: Discom Interconnect & Cable Run
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -233,7 +273,7 @@ export const SurveyorForm: React.FC = () => {
                       setFormData({ ...formData, sanctionedLoadKw: parseFloat(e.target.value) || 0 })
                     }
                     required
-                    className="w-full bg-slate-950/70 border border-slate-800 rounded-lg px-3.5 py-2 text-xs font-mono text-white focus:border-amber-400 focus:outline-none transition-colors"
+                    className="w-full bg-slate-950/70 border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-white focus:border-amber-400 focus:outline-none transition-colors"
                   />
                   <span className="absolute right-3 top-2 text-xs font-mono text-slate-500 pointer-events-none">kW</span>
                 </div>
@@ -255,7 +295,7 @@ export const SurveyorForm: React.FC = () => {
                       setFormData({ ...formData, cableRunMeters: parseFloat(e.target.value) || 0 })
                     }
                     required
-                    className="w-full bg-slate-950/70 border border-slate-800 rounded-lg px-3.5 py-2 text-xs font-mono text-white focus:border-amber-400 focus:outline-none transition-colors"
+                    className="w-full bg-slate-950/70 border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-white focus:border-amber-400 focus:outline-none transition-colors"
                   />
                   <span className="absolute right-3 top-2 text-xs font-mono text-slate-500 pointer-events-none">m</span>
                 </div>

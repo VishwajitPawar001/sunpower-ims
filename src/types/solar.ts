@@ -1,4 +1,11 @@
-export type UserRole = 'SALES' | 'SURVEYOR' | 'WAREHOUSE' | 'TECHNICIAN' | 'DIRECTOR';
+export type UserRole =
+  | 'ADMIN'
+  | 'DIRECTOR'
+  | 'SALES'
+  | 'SURVEYOR'
+  | 'WAREHOUSE'
+  | 'TECHNICIAN'
+  | 'SUPPORT';
 
 export type ProjectStatus =
   | 'LEAD_RECEIVED'
@@ -28,7 +35,8 @@ export interface ProjectLead {
 
 export interface SiteSurveyInput {
   projectId: string;
-  usableAreaSqm: number;
+  usableAreaSqm?: number;
+  roofUsableAreaSqm?: number;
   tiltDegrees: number;
   azimuthDegrees: number;
   cableRunMeters: number;
@@ -40,7 +48,7 @@ export interface SiteSurveyInput {
 
 export interface SerialVerificationItem {
   sku: string;
-  category: 'INVERTER' | 'BATTERY' | 'PANEL' | 'STRUCTURE' | 'BOS';
+  category: 'INVERTER' | 'BATTERY' | 'PANEL' | 'STRUCTURE' | 'BOS' | 'BALANCE_OF_SYSTEM';
   modelName: string;
   requiredQty: number;
   scannedSerials: string[];

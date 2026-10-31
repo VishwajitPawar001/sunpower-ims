@@ -2,7 +2,6 @@
 
 import React, { useState, useMemo } from 'react';
 import { 
-  Calculator, 
   FileCheck, 
   ShieldCheck, 
   Sun, 
@@ -10,12 +9,11 @@ import {
   Layers, 
   Loader2, 
   AlertCircle,
-  Zap,
   TrendingUp,
   Cpu,
   CheckCircle2
 } from 'lucide-react';
-import { SystemType } from '@/types/solar';
+import { SystemType, ProjectLead } from '@/types/solar';
 import { generateQuoteApi } from '@/lib/api';
 
 interface BOMItem {
@@ -26,12 +24,25 @@ interface BOMItem {
   unitCost: number;
 }
 
-export const QuoteGenerator: React.FC = () => {
-  const [projectId] = useState<string>('3fa85f64-5717-4562-b3fc-2c963f66afa6');
-  const [selectedCapacity, setSelectedCapacity] = useState<number>(5.0);
-  const [systemType, setSystemType] = useState<SystemType>('ON_GRID');
+interface QuoteGeneratorProps {
+  project?: ProjectLead | null;
+  onProjectUpdated?: (updatedProject: ProjectLead) => void;
+}
+
+export const QuoteGenerator: React.FC<QuoteGeneratorProps> = ({
+  project,
+  onProjectUpdated,
+}) => {
+  const currentProjectId = project?.id || '';
+  const [selectedCapacity, setSelectedCapacity] = useState<number>(project?.capacityKw || 5.0);
+  const [systemType, setSystemType] = useState<SystemType>(project?.systemType || 'ON_GRID');
   const [cableRunMeters, setCableRunMeters] = useState<number>(28);
-  const [isLocked, setIsLocked] = useState<boolean>(false);
+  const [isLocked, setIsLocked] = useState<boolean>(
+    project?.status === 'QUOTE_ISSUED' ||
+    project?.status === 'ORDER_CONFIRMED' ||
+    project?.status === 'DISPATCHED' ||
+    project?.status === 'COMMISSIONED'
+  );
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -98,17 +109,31 @@ export const QuoteGenerator: React.FC = () => {
   const marginPercent = ((projectedProfit / quotePrice) * 100).toFixed(1);
 
   const handleIssueQuote = async () => {
+    if (!currentProjectId) {
+      setErrorMessage('No project dossier selected to issue quote.');
+      return;
+    }
+
     setIsLoading(true);
     setErrorMessage(null);
 
     try {
       await generateQuoteApi({
-        projectId,
+        projectId: currentProjectId,
         capacityKw: selectedCapacity,
         systemType,
         agreedPrice: quotePrice,
       });
       setIsLocked(true);
+      if (project && onProjectUpdated) {
+        onProjectUpdated({
+          ...project,
+          capacityKw: selectedCapacity,
+          systemType,
+          status: 'QUOTE_ISSUED',
+          agreedPrice: quotePrice,
+        });
+      }
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Failed to issue quote via API');
     } finally {
@@ -128,11 +153,11 @@ export const QuoteGenerator: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-amber-400/10 text-amber-400 border border-amber-400/20">
-                  PRJ-2026-088
+                  {project?.projectCode || 'PROJECT DOSSIER'}
                 </span>
                 <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
                   <CheckCircle2 className="w-3 h-3" />
-                  SURVEY_APPROVED
+                  {project?.status || 'FEASIBILITY_VERIFIED'}
                 </span>
               </div>
               <h2 className="text-xl font-bold text-white mt-1.5 tracking-tight flex items-center gap-2">
@@ -141,6 +166,11 @@ export const QuoteGenerator: React.FC = () => {
                   STAGE 03
                 </span>
               </h2>
+              {project?.customerName && (
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Client: <span className="text-slate-200 font-semibold">{project.customerName}</span> ({project.address})
+                </p>
+              )}
             </div>
           </div>
 
@@ -159,10 +189,10 @@ export const QuoteGenerator: React.FC = () => {
           {/* Sizing Buttons */}
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-2">
-              Array Sizing (1.0 kWp - 5.0 kWp) *
+              Array Sizing (1.0 kWp - 10.0 kWp) *
             </label>
             <div className="grid grid-cols-5 gap-1.5">
-              {[1.0, 2.0, 3.0, 4.0, 5.0].map((kw) => (
+              {[1.0, 2.0, 3.0, 5.0, 10.0].map((kw) => (
                 <button
                   key={kw}
                   type="button"

@@ -6,7 +6,7 @@ import { requireRole } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
-    requireRole(req, ["ADMIN", "SALES"]);
+    requireRole(req, ["ADMIN", "DIRECTOR", "SALES"]);
     const body = await req.json();
     const valid = orderConfirmSchema.parse(body);
 
@@ -16,14 +16,6 @@ export async function POST(req: NextRequest) {
 
     if (!project) {
       throw new ApiError(404, "NOT_FOUND", "Project not found.");
-    }
-
-    if (project.status !== "QUOTE_ISSUED") {
-      throw new ApiError(
-        400,
-        "INVALID_STATE_TRANSITION",
-        `Cannot confirm order. Project is in '${project.status}' state, expected 'QUOTE_ISSUED'.`
-      );
     }
 
     const confirmedProject = await prisma.project.update({

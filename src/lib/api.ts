@@ -60,8 +60,9 @@ export interface LoginResponse {
   user: {
     id: string;
     email: string;
-    name: string;
-    role: 'ADMIN' | 'SALES' | 'SURVEYOR' | 'WAREHOUSE' | 'TECHNICIAN';
+    name?: string;
+    fullName?: string;
+    role: 'ADMIN' | 'DIRECTOR' | 'SALES' | 'SURVEYOR' | 'WAREHOUSE' | 'TECHNICIAN' | 'SUPPORT';
   };
 }
 
@@ -83,6 +84,7 @@ export async function createLeadApi(data: {
   address: string;
   capacityKw: number;
   systemType: 'ON_GRID' | 'OFF_GRID';
+  email?: string;
 }): Promise<ProjectLead> {
   return request<ProjectLead>('/api/leads', {
     method: 'POST',
@@ -92,11 +94,22 @@ export async function createLeadApi(data: {
 
 export async function generateQuoteApi(data: {
   projectId: string;
-  capacityKw: number;
-  systemType: 'ON_GRID' | 'OFF_GRID';
-  agreedPrice: number;
-}): Promise<{ quoteId: string; projectStatus: string }> {
+  capacityKw?: number;
+  systemType?: 'ON_GRID' | 'OFF_GRID';
+  agreedPrice?: number;
+  marginMarkupPercent?: number;
+}): Promise<{ quoteId: string; projectStatus: string; project?: unknown; quote?: unknown }> {
   return request('/api/quotes/generate', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function confirmOrderApi(data: {
+  projectId: string;
+  agreedPrice: number;
+}): Promise<{ message: string; project: unknown }> {
+  return request('/api/orders/confirm', {
     method: 'POST',
     body: JSON.stringify(data),
   });
@@ -105,14 +118,14 @@ export async function generateQuoteApi(data: {
 // 3. Surveyor Feasibility
 export type SiteSurveyPayload = SiteSurveyInput;
 
-export async function submitSurveyApi(data: SiteSurveyInput): Promise<{ surveyId: string; projectStatus: string }> {
+export async function submitSurveyApi(data: SiteSurveyInput): Promise<{ surveyId: string; projectStatus: string; project?: unknown }> {
   return request('/api/surveys', {
     method: 'POST',
     body: JSON.stringify(data),
   });
 }
 
-// 4. Warehouse Dispatch Barcode Scan (POST /api/dispatch/scan)
+// 4. Warehouse Dispatch Barcode Scan (POST /api/dispatch/scan & GET /api/dispatch)
 export interface DispatchScanResult {
   serialNumber: string;
   category: string;
@@ -131,13 +144,37 @@ export async function scanDispatchBarcodeApi(data: {
   });
 }
 
+export async function getWarehouseStockApi(projectId?: string): Promise<{
+  stockItems: Array<{
+    id: string;
+    sku: string;
+    modelName: string;
+    category: string;
+    unitCost: number;
+    quantityOnHand: number;
+    warrantyMonths: number;
+    serialRegistry?: Array<{ id: string; serialNumber: string; isDispatched: boolean; projectId: string | null }>;
+  }>;
+  availableSerials: Array<{
+    id: string;
+    serialNumber: string;
+    stockItem: { sku: string; modelName: string; category: string };
+  }>;
+}> {
+  const url = projectId ? `/api/dispatch?projectId=${encodeURIComponent(projectId)}` : '/api/dispatch';
+  return request(url, { method: 'GET' });
+}
+
 // 5. Technician Commissioning Sign-Off (POST /api/commissioning/sign)
 export interface CommissioningSignPayload {
   projectId: string;
-  vocVolts: number;
-  iscAmperes: number;
+  vocVolts?: number;
+  vocVoltsMeasured?: number;
+  iscAmperes?: number;
+  iscAmpsMeasured?: number;
   earthingResistanceOhms: number;
-  signatureSvg: string;
+  signatureSvg?: string;
+  customerSignatureSvg?: string;
   completionPhotoUrl?: string;
 }
 
@@ -197,20 +234,43 @@ export interface SupportTicket {
   customerName: string;
   issueDescription: string;
   priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-  status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
+  status: 'OPEN' | 'IN_PROGRESS' | 'INVESTIGATING' | 'PARTS_REPLACED' | 'RESOLVED' | 'CLOSED';
   createdAt: string;
 }
 
+interface TicketsResponse {
+  count?: number;
+  tickets?: SupportTicket[];
+}
+
 export async function getTicketsApi(): Promise<SupportTicket[]> {
-  return request<SupportTicket[]>('/api/tickets', { method: 'GET' });
+  const res = await request<SupportTicket[] | TicketsResponse>('/api/tickets', { method: 'GET' });
+  if (Array.isArray(res)) return res;
+  if (res && Array.isArray(res.tickets)) return res.tickets;
+  return [];
 }
 
 export async function updateTicketStatusApi(
   ticketId: string,
-  status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED'
-): Promise<SupportTicket> {
-  return request<SupportTicket>(`/api/tickets/${ticketId}`, {
+  status: string,
+  description?: string,
+  replacementSerial?: string
+): Promise<unknown> {
+  return request(`/api/tickets/${ticketId}`, {
     method: 'PATCH',
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, description, replacementSerial }),
+  });
+}
+
+export async function createTicketApi(data: {
+  projectId?: string;
+  serialNumber?: string;
+  reportedFaultCode?: string;
+  description: string;
+  priority?: string;
+}): Promise<SupportTicket> {
+  return request<SupportTicket>('/api/tickets', {
+    method: 'POST',
+    body: JSON.stringify(data),
   });
 }

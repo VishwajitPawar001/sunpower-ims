@@ -7,7 +7,7 @@ import bcrypt from "bcryptjs";
 
 export async function POST(req: NextRequest) {
   try {
-    requireRole(req, ["ADMIN"]);
+    requireRole(req, ["ADMIN", "DIRECTOR"]);
     const body = await req.json();
     const valid = createUserSchema.parse(body);
 
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
-    requireRole(req, ["ADMIN"]);
+    requireRole(req, ["ADMIN", "DIRECTOR"]);
 
     const users = await prisma.user.findMany({
       select: {

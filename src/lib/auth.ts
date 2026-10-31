@@ -2,9 +2,19 @@ import { NextRequest } from "next/server";
 import jwt from "jsonwebtoken";
 import { ApiError } from "./errorHandler";
 
-const JWT_SECRET = process.env.NEXTAUTH_SECRET || "fallback-secret-min-32-chars-long";
+const JWT_SECRET =
+  process.env.JWT_SECRET ||
+  process.env.NEXTAUTH_SECRET ||
+  "sunpower-super-secret-jwt-key-2026-production";
 
-export type AllowedRole = "ADMIN" | "SALES" | "SURVEYOR" | "WAREHOUSE" | "TECHNICIAN" | "SUPPORT";
+export type AllowedRole =
+  | "ADMIN"
+  | "DIRECTOR"
+  | "SALES"
+  | "SURVEYOR"
+  | "WAREHOUSE"
+  | "TECHNICIAN"
+  | "SUPPORT";
 
 export interface UserSession {
   userId: string;
@@ -18,16 +28,24 @@ export function signJwtToken(payload: UserSession): string {
 }
 
 export function requireRole(req: NextRequest, allowedRoles: AllowedRole[]): UserSession {
+  let token: string | null = null;
+
   const authHeader = req.headers.get("authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    token = authHeader.split(" ")[1];
+  } else {
+    token = req.cookies.get("auth-token")?.value || null;
+  }
+
+  if (!token) {
     throw new ApiError(401, "UNAUTHORIZED", "Missing or invalid authorization token.");
   }
 
-  const token = authHeader.split(" ")[1];
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as UserSession;
 
-    if (!allowedRoles.includes(decoded.role) && decoded.role !== "ADMIN") {
+    const isPrivileged = decoded.role === "ADMIN" || decoded.role === "DIRECTOR";
+    if (!allowedRoles.includes(decoded.role) && !isPrivileged) {
       throw new ApiError(
         403,
         "FORBIDDEN",
