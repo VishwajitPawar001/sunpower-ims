@@ -1,5 +1,9 @@
 
-import { PrismaClient, UserRole, ComponentType } from "@prisma/client";
+import {
+  PrismaClient,
+  UserRole,
+  ComponentType,
+} from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
@@ -7,51 +11,23 @@ const prisma = new PrismaClient();
 async function main() {
   console.log("Starting SunPower database seeding...");
 
-  // Read the initial password from the .env file
+  // 1. Read the initial password
   const initialPassword = process.env.SEED_PASSWORD;
 
   if (!initialPassword) {
     throw new Error("SEED_PASSWORD is missing from your .env file.");
   }
 
-  // Hash the password before storing it
   const passwordHash = await bcrypt.hash(initialPassword, 12);
 
-  // --------------------------------------------------
-  // 1. CREATE INITIAL USERS FOR ALL SIX ROLES
-  // --------------------------------------------------
-
+  // 2. Create or update users
   const users = [
-    {
-      email: "admin@sunpower.local",
-      fullName: "System Administrator",
-      role: UserRole.ADMIN,
-    },
-    {
-      email: "sales@sunpower.local",
-      fullName: "Sales Executive",
-      role: UserRole.SALES,
-    },
-    {
-      email: "surveyor@sunpower.local",
-      fullName: "Site Surveyor",
-      role: UserRole.SURVEYOR,
-    },
-    {
-      email: "warehouse@sunpower.local",
-      fullName: "Warehouse Manager",
-      role: UserRole.WAREHOUSE,
-    },
-    {
-      email: "technician@sunpower.local",
-      fullName: "Installation Technician",
-      role: UserRole.TECHNICIAN,
-    },
-    {
-      email: "support@sunpower.local",
-      fullName: "Support Executive",
-      role: UserRole.SUPPORT,
-    },
+    { email: "admin@sunpower.local", fullName: "System Administrator", role: UserRole.ADMIN },
+    { email: "sales@sunpower.local", fullName: "Sales Executive", role: UserRole.SALES },
+    { email: "surveyor@sunpower.local", fullName: "Site Surveyor", role: UserRole.SURVEYOR },
+    { email: "warehouse@sunpower.local", fullName: "Warehouse Manager", role: UserRole.WAREHOUSE },
+    { email: "technician@sunpower.local", fullName: "Installation Technician", role: UserRole.TECHNICIAN },
+    { email: "support@sunpower.local", fullName: "Support Executive", role: UserRole.SUPPORT },
   ];
 
   for (const user of users) {
@@ -61,20 +37,15 @@ async function main() {
         fullName: user.fullName,
         role: user.role,
         isActive: true,
-      },
-      create: {
-        ...user,
         passwordHash,
       },
+      create: { ...user, passwordHash },
     });
   }
 
   console.log("Created or verified six role-based users.");
 
-  // --------------------------------------------------
-  // 2. CREATE SAMPLE CUSTOMERS
-  // --------------------------------------------------
-
+  // 3. Create or update customers
   const customers = [
     {
       fullName: "Aarav Sharma",
@@ -104,10 +75,7 @@ async function main() {
 
   console.log("Created or verified sample customers.");
 
-  // --------------------------------------------------
-  // 3. CREATE SAMPLE WAREHOUSE STOCK ITEMS
-  // --------------------------------------------------
-
+  // 4. Create or update stock items
   const stockItems = [
     {
       sku: "SOLAR-PANEL-550W",
@@ -165,6 +133,29 @@ async function main() {
   }
 
   console.log("Created or verified sample stock items.");
+
+  // 5. Generate serial numbers for all stock items
+  const availableStockItems = await prisma.stockItem.findMany();
+
+  for (const item of availableStockItems) {
+    await prisma.serialRegistry.createMany({
+      data: [
+        {
+          serialNumber: `${item.sku}-SN-1001`,
+          stockItemId: item.id,
+          isDispatched: false,
+        },
+        {
+          serialNumber: `${item.sku}-SN-1002`,
+          stockItemId: item.id,
+          isDispatched: false,
+        },
+      ],
+      skipDuplicates: true,
+    });
+
+    console.log(`Serials verified for ${item.modelName}`);
+  }
 
   console.log("SunPower database seeding completed successfully!");
 }

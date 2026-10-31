@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
         ticketNumber,
         projectId: valid.projectId,
         serialRegistryId: serial.id,
-        reportedFaultCode: valid.reportedFaultCode || null,
+        reportedFaultCode: valid.reportedFaultCode || "UNSPECIFIED",
         description: valid.description,
         isCoveredUnderWarranty: isCovered,
         billableAmount: isCovered ? 0.0 : 1500.0, // Default base labor charge if expired
