@@ -1,17 +1,17 @@
-'use client';
-
-import React, { useState } from 'react';
-import { Sidebar } from '@/components/layout/Sidebar';
-import { LeadsTable } from '@/components/sales/LeadsTable';
-import { SurveyorForm } from '@/components/surveyor/SurveyorForm';
-import { DispatchScanner } from '@/components/warehouse/DispatchScanner';
-import { SignoffCanvas } from '@/components/technician/SignoffCanvas';
-import { MarginDashboard } from '@/components/director/MarginDashboard';
-import { UserRole } from '@/types/solar';
+"use client";
+import { QuoteGenerator } from "@/components/sales/QuoteGenerator";
+import React, { useState } from "react";
+import { Sidebar } from "@/components/layout/Sidebar";
+import { LeadsTable } from "@/components/sales/LeadsTable";
+import { SurveyorForm } from "@/components/surveyor/SurveyorForm";
+import { DispatchScanner } from "@/components/warehouse/DispatchScanner";
+import { SignoffCanvas } from "@/components/technician/SignoffCanvas";
+import { MarginDashboard } from "@/components/director/MarginDashboard";
+import { UserRole } from "@/types/solar";
 
 export default function DashboardPage() {
-  const [currentRole, setCurrentRole] = useState<UserRole>('SALES');
-  const [activeView, setActiveView] = useState<string>('sales-leads');
+  const [currentRole, setCurrentRole] = useState<UserRole>("SALES");
+  const [activeView, setActiveView] = useState<string>("sales-leads");
 
   return (
     <div className="flex h-screen bg-enterprise-bg overflow-hidden font-sans antialiased text-enterprise-charcoal">
@@ -23,7 +23,16 @@ export default function DashboardPage() {
         onViewChange={(view) => setActiveView(view)}
       />
 
-      {/* Main Content Viewport */}
+      {
+        <div className="p-8 max-w-7xl w-full mx-auto">
+          {activeView === "sales-leads" && <LeadsTable />}
+          {activeView === "sales-quotes" && <QuoteGenerator />}
+          {activeView === "surveyor-form" && <SurveyorForm />}
+          {activeView === "warehouse-dispatch" && <DispatchScanner />}
+          {activeView === "technician-signoff" && <SignoffCanvas />}
+          {activeView === "director-margins" && <MarginDashboard />}
+        </div>
+      }
       <main className="flex-1 flex flex-col h-screen overflow-y-auto">
         {/* Top Navbar */}
         <header className="h-16 bg-enterprise-surface border-b border-enterprise-border px-8 flex items-center justify-between shrink-0 sticky top-0 z-10 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
@@ -37,18 +46,20 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex items-center gap-4 text-xs font-medium">
-            <span className="text-enterprise-smoke">Session: Standard TLS 1.3 / Strict RBAC</span>
+            <span className="text-enterprise-smoke">
+              Session: Standard TLS 1.3 / Strict RBAC
+            </span>
             <span className="w-2 h-2 rounded-full bg-enterprise-forest" />
           </div>
         </header>
 
         {/* View Surface Container */}
         <div className="p-8 max-w-7xl w-full mx-auto">
-          {activeView === 'sales-leads' && <LeadsTable />}
-          {activeView === 'surveyor-form' && <SurveyorForm />}
-          {activeView === 'warehouse-dispatch' && <DispatchScanner />}
-          {activeView === 'technician-signoff' && <SignoffCanvas />}
-          {activeView === 'director-margins' && <MarginDashboard />}
+          {activeView === "sales-leads" && <LeadsTable />}
+          {activeView === "surveyor-form" && <SurveyorForm />}
+          {activeView === "warehouse-dispatch" && <DispatchScanner />}
+          {activeView === "technician-signoff" && <SignoffCanvas />}
+          {activeView === "director-margins" && <MarginDashboard />}
         </div>
       </main>
     </div>
