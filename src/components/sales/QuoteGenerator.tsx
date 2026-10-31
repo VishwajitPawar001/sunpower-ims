@@ -5,13 +5,14 @@ import {
   Calculator, 
   FileCheck, 
   ShieldCheck, 
-  Cpu, 
-  Battery, 
   Sun, 
-  Wrench, 
-  Layers 
+  Battery, 
+  Layers, 
+  Loader2, 
+  AlertCircle 
 } from 'lucide-react';
 import { SystemType } from '@/types/solar';
+import { generateQuoteApi } from '@/lib/api';
 
 interface BOMItem {
   sku: string;
@@ -22,12 +23,15 @@ interface BOMItem {
 }
 
 export const QuoteGenerator: React.FC = () => {
+  const [projectId] = useState<string>('3fa85f64-5717-4562-b3fc-2c963f66afa6');
   const [selectedCapacity, setSelectedCapacity] = useState<number>(5.0);
   const [systemType, setSystemType] = useState<SystemType>('ON_GRID');
   const [cableRunMeters, setCableRunMeters] = useState<number>(28);
   const [isLocked, setIsLocked] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Dynamic BOM Calculation based on system sizing
+  // Dynamic Bill of Materials sizing calculation
   const bomItems = useMemo<BOMItem[]>(() => {
     const panelWatts = 550;
     const totalWattsNeeded = selectedCapacity * 1000;
@@ -78,20 +82,38 @@ export const QuoteGenerator: React.FC = () => {
     return items;
   }, [selectedCapacity, systemType, cableRunMeters]);
 
-  // Financial Breakdown per Section 2 margin rules
+  // Unit economics breakdown
   const hardwareCost = bomItems.reduce((acc, item) => acc + item.qty * item.unitCost, 0);
   const laborCost = Math.round(selectedCapacity * 5500);
   const overheadCost = Math.round(hardwareCost * 0.08);
   const totalCost = hardwareCost + laborCost + overheadCost;
   
-  // Target 28% Gross Margin
+  // 28% Target Gross Margin
   const quotePrice = Math.round(totalCost / (1 - 0.28));
   const projectedProfit = quotePrice - totalCost;
   const marginPercent = ((projectedProfit / quotePrice) * 100).toFixed(1);
 
+  const handleIssueQuote = async () => {
+    setIsLoading(true);
+    setErrorMessage(null);
+
+    try {
+      await generateQuoteApi({
+        projectId,
+        capacityKw: selectedCapacity,
+        systemType,
+        agreedPrice: quotePrice,
+      });
+      setIsLocked(true);
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to issue quote via API');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      {/* Header */}
       <div className="bg-enterprise-surface p-6 rounded-lg border border-enterprise-border shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-enterprise-border pb-4">
           <div className="flex items-center gap-3">
@@ -121,9 +143,7 @@ export const QuoteGenerator: React.FC = () => {
           </div>
         </div>
 
-        {/* Sizing & Package Controls */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mt-5">
-          {/* Capacity Preset */}
           <div>
             <label className="block text-xs font-semibold text-enterprise-charcoal mb-1">
               System Sizing (1.0 kW - 5.0 kW) *
@@ -133,7 +153,7 @@ export const QuoteGenerator: React.FC = () => {
                 <button
                   key={kw}
                   type="button"
-                  disabled={isLocked}
+                  disabled={isLocked || isLoading}
                   onClick={() => setSelectedCapacity(kw)}
                   className={`py-2 rounded text-xs font-mono font-bold border transition-colors ${
                     selectedCapacity === kw
@@ -147,7 +167,6 @@ export const QuoteGenerator: React.FC = () => {
             </div>
           </div>
 
-          {/* System Topology */}
           <div>
             <label className="block text-xs font-semibold text-enterprise-charcoal mb-1">
               Grid Configuration *
@@ -155,7 +174,7 @@ export const QuoteGenerator: React.FC = () => {
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                disabled={isLocked}
+                disabled={isLocked || isLoading}
                 onClick={() => setSystemType('ON_GRID')}
                 className={`py-2 rounded text-xs font-medium border flex items-center justify-center gap-1.5 transition-colors ${
                   systemType === 'ON_GRID'
@@ -168,7 +187,7 @@ export const QuoteGenerator: React.FC = () => {
               </button>
               <button
                 type="button"
-                disabled={isLocked}
+                disabled={isLocked || isLoading}
                 onClick={() => setSystemType('OFF_GRID')}
                 className={`py-2 rounded text-xs font-medium border flex items-center justify-center gap-1.5 transition-colors ${
                   systemType === 'OFF_GRID'
@@ -182,7 +201,6 @@ export const QuoteGenerator: React.FC = () => {
             </div>
           </div>
 
-          {/* Survey Cable Run Distance */}
           <div>
             <label className="block text-xs font-semibold text-enterprise-charcoal mb-1">
               Survey Cable Length (Meters)
@@ -191,7 +209,7 @@ export const QuoteGenerator: React.FC = () => {
               type="number"
               min="5"
               max="200"
-              disabled={isLocked}
+              disabled={isLocked || isLoading}
               value={cableRunMeters}
               onChange={(e) => setCableRunMeters(parseInt(e.target.value) || 10)}
               className="w-full bg-enterprise-surface border border-enterprise-border rounded px-3 py-1.5 text-xs font-mono text-enterprise-charcoal focus:border-enterprise-blue focus:outline-none"
@@ -200,7 +218,6 @@ export const QuoteGenerator: React.FC = () => {
           </div>
         </div>
 
-        {/* Dynamic Bill of Materials Table */}
         <div className="mt-6 border border-enterprise-border rounded-lg overflow-hidden">
           <div className="px-4 py-2.5 bg-slate-50 border-b border-enterprise-border flex items-center justify-between">
             <span className="text-xs font-semibold text-enterprise-charcoal uppercase tracking-wider flex items-center gap-2">
@@ -249,7 +266,6 @@ export const QuoteGenerator: React.FC = () => {
           </table>
         </div>
 
-        {/* Cost & Margin Summary Panel */}
         <div className="mt-5 p-4 rounded-lg bg-enterprise-bg border border-enterprise-border grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-mono">
           <div>
             <div className="text-enterprise-smoke font-sans">Hardware BOM:</div>
@@ -269,25 +285,36 @@ export const QuoteGenerator: React.FC = () => {
           </div>
         </div>
 
-        {/* Action Trigger */}
+        {errorMessage && (
+          <div className="mt-4 p-3 rounded bg-red-50 border border-red-200 text-xs text-enterprise-brick flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            {errorMessage}
+          </div>
+        )}
+
         <div className="mt-6 pt-4 border-t border-enterprise-border flex items-center justify-between">
           <div className="text-xs text-enterprise-smoke">
             {isLocked
-              ? 'BOM locked. State transitioned to [QUOTE_ISSUED].'
+              ? 'BOM locked in database. State transitioned to [QUOTE_ISSUED].'
               : 'Locking generates official proposal and activates customer confirmation step.'}
           </div>
 
           <button
             type="button"
-            disabled={isLocked}
-            onClick={() => setIsLocked(true)}
+            disabled={isLocked || isLoading}
+            onClick={handleIssueQuote}
             className={`px-5 py-2.5 rounded text-xs font-semibold text-white transition-colors flex items-center gap-2 ${
               isLocked
                 ? 'bg-enterprise-forest cursor-default'
                 : 'bg-enterprise-navy hover:bg-slate-800 shadow cursor-pointer'
-            }`}
+            } disabled:opacity-50`}
           >
-            {isLocked ? (
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Processing Transaction...
+              </>
+            ) : isLocked ? (
               <>
                 <ShieldCheck className="w-4 h-4" />
                 Quote Issued & BOM Locked
