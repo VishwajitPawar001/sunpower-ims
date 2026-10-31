@@ -1,28 +1,27 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   TrendingUp, 
   Layers, 
   ShieldAlert, 
   DollarSign, 
   CheckCircle2, 
-  Clock 
+  Clock, 
+  Loader2 
 } from 'lucide-react';
+import { fetchFinanceMarginsApi, FinanceMarginsData } from '@/lib/api';
 
-export const MarginDashboard: React.FC = () => {
-  const financialSummary = {
-    totalRevenue: 2845000,
-    totalBomCost: 1620000,
-    laborCost: 280000,
-    overheadCost: 140000,
-    grossProfit: 805000,
-    grossMarginPercent: 28.3,
-    activeProjectsCount: 18,
-    openWarrantyTickets: 3,
-  };
-
-  const projectMargins = [
+const FALLBACK_DATA: FinanceMarginsData = {
+  totalRevenue: 2845000,
+  totalBomCost: 1620000,
+  laborCost: 280000,
+  overheadCost: 140000,
+  grossProfit: 805000,
+  grossMarginPercent: 28.3,
+  activeProjectsCount: 18,
+  openWarrantyTickets: 3,
+  projects: [
     {
       code: 'PRJ-2026-088',
       customer: 'Kaveri Industrial Mills',
@@ -71,23 +70,70 @@ export const MarginDashboard: React.FC = () => {
       marginPct: 28.2,
       status: 'COMPLETED',
     },
-  ];
+  ],
+};
+
+export const MarginDashboard: React.FC = () => {
+  const [data, setData] = useState<FinanceMarginsData>(FALLBACK_DATA);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLiveApi, setIsLiveApi] = useState<boolean>(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadMargins() {
+      try {
+        const liveData = await fetchFinanceMarginsApi();
+        if (mounted && liveData && liveData.projects) {
+          setData(liveData);
+          setIsLiveApi(true);
+        }
+      } catch {
+        // Retains FALLBACK_DATA if API endpoint is still in development
+        if (mounted) setIsLiveApi(false);
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    }
+
+    loadMargins();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   return (
     <div className="space-y-6">
-      {/* Top Banner */}
-      <div>
-        <h2 className="text-xl font-bold text-enterprise-charcoal">
-          Director Financial & Operational Oversight
-        </h2>
-        <p className="text-xs text-enterprise-smoke">
-          Real-time unit economics, net project margins, and SLA compliance
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-enterprise-charcoal">
+            Director Financial & Operational Oversight
+          </h2>
+          <p className="text-xs text-enterprise-smoke">
+            Real-time telemetry per GET /api/finance/margins (Section 5.1)
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {isLoading ? (
+            <span className="text-xs text-enterprise-smoke flex items-center gap-1.5">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-enterprise-blue" />
+              Syncing Ledger...
+            </span>
+          ) : (
+            <span
+              className={`text-xs px-2.5 py-1 rounded border font-mono font-medium ${
+                isLiveApi
+                  ? 'bg-green-50 text-enterprise-forest border-green-200'
+                  : 'bg-slate-100 text-enterprise-smoke border-enterprise-border'
+              }`}
+            >
+              {isLiveApi ? '● Live DB Stream' : '○ Standalone Mock'}
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Metric 1 */}
         <div className="bg-enterprise-surface p-4 rounded-lg border border-enterprise-border shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-enterprise-smoke uppercase tracking-wider">
@@ -98,15 +144,14 @@ export const MarginDashboard: React.FC = () => {
             </div>
           </div>
           <div className="text-2xl font-bold text-enterprise-charcoal font-mono mt-2">
-            ₹{financialSummary.grossProfit.toLocaleString('en-IN')}
+            ₹{data.grossProfit.toLocaleString('en-IN')}
           </div>
           <div className="flex items-center gap-1 text-[11px] text-enterprise-forest font-semibold mt-1">
             <TrendingUp className="w-3.5 h-3.5" />
-            {financialSummary.grossMarginPercent}% blended margin
+            {data.grossMarginPercent}% blended margin
           </div>
         </div>
 
-        {/* Metric 2 */}
         <div className="bg-enterprise-surface p-4 rounded-lg border border-enterprise-border shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-enterprise-smoke uppercase tracking-wider">
@@ -117,14 +162,13 @@ export const MarginDashboard: React.FC = () => {
             </div>
           </div>
           <div className="text-2xl font-bold text-enterprise-charcoal font-mono mt-2">
-            {financialSummary.activeProjectsCount}
+            {data.activeProjectsCount}
           </div>
           <div className="text-[11px] text-enterprise-smoke mt-1">
-            4 in survey, 8 confirmed, 6 in field install
+            WIP tracking across all 9 finite states
           </div>
         </div>
 
-        {/* Metric 3 */}
         <div className="bg-enterprise-surface p-4 rounded-lg border border-enterprise-border shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-enterprise-smoke uppercase tracking-wider">
@@ -135,14 +179,13 @@ export const MarginDashboard: React.FC = () => {
             </div>
           </div>
           <div className="text-2xl font-bold text-enterprise-charcoal font-mono mt-2">
-            ₹{(financialSummary.totalBomCost + financialSummary.laborCost).toLocaleString('en-IN')}
+            ₹{(data.totalBomCost + data.laborCost).toLocaleString('en-IN')}
           </div>
           <div className="text-[11px] text-enterprise-smoke mt-1">
-            COGS strictly tracked via inventory registry
+            COGS strictly linked to stock registry
           </div>
         </div>
 
-        {/* Metric 4 */}
         <div className="bg-enterprise-surface p-4 rounded-lg border border-enterprise-border shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-enterprise-smoke uppercase tracking-wider">
@@ -153,7 +196,7 @@ export const MarginDashboard: React.FC = () => {
             </div>
           </div>
           <div className="text-2xl font-bold text-enterprise-amber font-mono mt-2">
-            {financialSummary.openWarrantyTickets} Active
+            {data.openWarrantyTickets} Active
           </div>
           <div className="text-[11px] text-enterprise-forest font-semibold mt-1 flex items-center gap-1">
             <CheckCircle2 className="w-3.5 h-3.5" />
@@ -162,7 +205,6 @@ export const MarginDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Margin Breakdown Table */}
       <div className="bg-enterprise-surface rounded-lg border border-enterprise-border overflow-hidden shadow-sm">
         <div className="p-4 border-b border-enterprise-border flex items-center justify-between bg-slate-50/50">
           <div>
@@ -190,7 +232,7 @@ export const MarginDashboard: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-enterprise-border">
-              {projectMargins.map((prj) => (
+              {data.projects.map((prj) => (
                 <tr key={prj.code} className="hover:bg-slate-50/60">
                   <td className="py-3 px-4">
                     <div className="font-semibold text-enterprise-charcoal">{prj.customer}</div>
