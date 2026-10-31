@@ -24,9 +24,7 @@ export async function POST(req: NextRequest) {
 
     const now = new Date();
     const isCovered =
-      serial.warrantyEndDate !== null &&
-      now <= serial.warrantyEndDate &&
-      serial.status === "ACTIVE";
+      serial.warrantyEndDate !== null && now <= serial.warrantyEndDate;
 
     const ticketNumber = `TKT-${Date.now().toString().slice(-6)}`;
 
@@ -38,12 +36,40 @@ export async function POST(req: NextRequest) {
         reportedFaultCode: valid.reportedFaultCode || null,
         description: valid.description,
         isCoveredUnderWarranty: isCovered,
-        billableAmount: isCovered ? 0.0 : 1500.0, // Default base labor charge if expired
+        billableAmount: isCovered ? 0.0 : 1500.0,
         status: "OPEN",
       },
     });
 
     return apiSuccess(ticket, 201);
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    requireRole(req, ["ADMIN", "SUPPORT", "TECHNICIAN", "SALES"]);
+
+    const tickets = await prisma.supportTicket.findMany({
+      include: {
+        project: {
+          select: {
+            id: true,
+            projectCode: true,
+            status: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return apiSuccess({
+      count: tickets.length,
+      tickets,
+    });
   } catch (error) {
     return handleApiError(error);
   }

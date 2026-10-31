@@ -64,11 +64,23 @@ export const orderConfirmSchema = z
 
 export const commissioningSignSchema = z
   .object({
-    projectId: z.string().uuid("Invalid project ID format"),
-    vocVoltsMeasured: z.number().positive("Voc must be positive"),
-    iscAmpsMeasured: z.number().positive("Isc must be positive"),
-    earthingResistanceOhms: z.number().positive("Earthing resistance must be positive"),
-    completionPhotoUrl: z.string().url("Must be a valid photo URL"),
-    customerSignatureSvg: z.string().min(10, "Valid SVG path signature required"),
+    projectId: z.string().uuid('Invalid project ID format'),
+    vocVoltsMeasured: z.number().positive('Voc must be positive'),
+    iscAmpsMeasured: z.number().positive('Isc must be positive'),
+    earthingResistanceOhms: z
+      .number()
+      .positive('Earthing resistance must be positive'),
+    completionPhotoUrl: z.string().url('Must be a valid photo URL'),
+    customerSignatureSvg: z
+      .string()
+      .min(10, 'Valid SVG path signature required'),
+  })
+  .strict();
+
+export const updateTicketSchema = z
+  .object({
+    status: z.enum(["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"]),
+    description: z.string().min(5, "Description must be at least 5 characters").optional(),
+    replacementSerial: z.string().optional(),
   })
   .strict();
