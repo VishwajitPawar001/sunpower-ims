@@ -1,16 +1,17 @@
-"use client";
+'use client';
 
-import React, { useRef, useState, useEffect, useCallback } from "react";
-import {
-  CheckCircle2,
-  Eraser,
-  Camera,
-  Upload,
-  ShieldAlert,
-  Check,
+import React, { useRef, useState, useEffect, useCallback } from 'react';
+import { 
+  CheckCircle2, 
+  Eraser, 
+  Camera, 
+  Upload, 
+  ShieldAlert, 
+  Check, 
   Loader2,
-} from "lucide-react";
-import { submitCommissioningSignApi, ApiError } from "@/lib/api";
+  Award
+} from 'lucide-react';
+import { submitCommissioningSignApi, ApiError } from '@/lib/api';
 
 interface Point {
   x: number;
@@ -24,61 +25,40 @@ interface ChecklistItem {
 }
 
 export const SignoffCanvas: React.FC = () => {
-  const [projectId] = useState<string>("3fa85f64-5717-4562-b3fc-2c963f66afa6");
+  const [projectId] = useState<string>('3fa85f64-5717-4562-b3fc-2c963f66afa6');
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasSignature, setHasSignature] = useState(false);
 
-  // SVG Stroke coordinate recording
   const [strokes, setStrokes] = useState<Point[][]>([]);
   const [currentStroke, setCurrentStroke] = useState<Point[]>([]);
 
-  // Generation measurements
-  const [voc, setVoc] = useState<string>("382.4");
-  const [isc, setIsc] = useState<string>("9.8");
-  const [earthingOhms, setEarthingOhms] = useState<string>("2.1");
+  // Electrical generation measurements
+  const [vocVolts, setVocVolts] = useState<string>('382.4');
+  const [iscAmperes, setIscAmperes] = useState<string>('9.8');
+  const [earthingResistanceOhms, setEarthingResistanceOhms] = useState<string>('2.1');
 
   const [checklist, setChecklist] = useState<ChecklistItem[]>([
-    {
-      id: "1",
-      label: "DC and AC Surge Protection Devices (SPD) locked",
-      done: true,
-    },
-    {
-      id: "2",
-      label: "Array racking torqued to spec & flashed watertight",
-      done: true,
-    },
-    {
-      id: "3",
-      label: "Earthing electrode pit tested (< 5.0 Ohms)",
-      done: true,
-    },
-    {
-      id: "4",
-      label: "Inverter grid sync & anti-islanding relay verified",
-      done: true,
-    },
-    {
-      id: "5",
-      label: "Customer briefed on emergency disconnect procedure",
-      done: true,
-    },
+    { id: '1', label: 'DC and AC Surge Protection Devices (SPD) locked', done: true },
+    { id: '2', label: 'Array racking torqued to spec & flashed watertight', done: true },
+    { id: '3', label: 'Earthing electrode pit tested (< 5.0 Ohms)', done: true },
+    { id: '4', label: 'Inverter grid sync & anti-islanding relay verified', done: true },
+    { id: '5', label: 'Customer briefed on emergency disconnect procedure', done: true },
   ]);
 
   const [photoSelected, setPhotoSelected] = useState<boolean>(true);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [submitStatus, setSubmitStatus] = useState<{
-    type: "IDLE" | "SUCCESS" | "ERROR";
-    text?: string;
-  }>({
-    type: "IDLE",
-  });
+  const [commissionedResult, setCommissionedResult] = useState<{
+    recordId: string;
+    projectStatus: string;
+    warrantyStartDate: string;
+  } | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const setupCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     const ratio = window.devicePixelRatio || 1;
@@ -87,26 +67,24 @@ export const SignoffCanvas: React.FC = () => {
     canvas.height = rect.height * ratio;
     ctx.scale(ratio, ratio);
     ctx.lineWidth = 2.5;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.strokeStyle = "#020617";
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#020617';
   }, []);
 
   useEffect(() => {
     setupCanvas();
-    window.addEventListener("resize", setupCanvas);
-    return () => window.removeEventListener("resize", setupCanvas);
+    window.addEventListener('resize', setupCanvas);
+    return () => window.removeEventListener('resize', setupCanvas);
   }, [setupCanvas]);
 
   const getCoordinates = (
-    e:
-      | React.MouseEvent<HTMLCanvasElement>
-      | React.TouchEvent<HTMLCanvasElement>,
+    e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>
   ): Point => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
-    if ("touches" in e && e.touches.length > 0) {
+    if ('touches' in e && e.touches.length > 0) {
       return {
         x: e.touches[0].clientX - rect.left,
         y: e.touches[0].clientY - rect.top,
@@ -120,13 +98,11 @@ export const SignoffCanvas: React.FC = () => {
   };
 
   const startDrawing = (
-    e:
-      | React.MouseEvent<HTMLCanvasElement>
-      | React.TouchEvent<HTMLCanvasElement>,
+    e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>
   ) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     const pt = getCoordinates(e);
@@ -138,14 +114,12 @@ export const SignoffCanvas: React.FC = () => {
   };
 
   const draw = (
-    e:
-      | React.MouseEvent<HTMLCanvasElement>
-      | React.TouchEvent<HTMLCanvasElement>,
+    e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>
   ) => {
     if (!isDrawing) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     const pt = getCoordinates(e);
@@ -165,7 +139,7 @@ export const SignoffCanvas: React.FC = () => {
   const clearCanvas = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     setStrokes([]);
@@ -173,13 +147,12 @@ export const SignoffCanvas: React.FC = () => {
     setHasSignature(false);
   };
 
-  // Convert tracked strokes to vector SVG markup
   const generateSvgPath = (): string => {
     const canvas = canvasRef.current;
     const width = canvas ? canvas.clientWidth : 500;
     const height = canvas ? canvas.clientHeight : 176;
 
-    let pathData = "";
+    let pathData = '';
     strokes.forEach((stroke) => {
       if (stroke.length === 0) return;
       pathData += `M ${stroke[0].x.toFixed(1)} ${stroke[0].y.toFixed(1)} `;
@@ -193,9 +166,7 @@ export const SignoffCanvas: React.FC = () => {
 
   const toggleChecklist = (id: string) => {
     setChecklist((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, done: !item.done } : item,
-      ),
+      prev.map((item) => (item.id === id ? { ...item, done: !item.done } : item))
     );
   };
 
@@ -204,44 +175,34 @@ export const SignoffCanvas: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!hasSignature || !allChecksPassed || !photoSelected) {
-      setSubmitStatus({
-        type: "ERROR",
-        text: "All checklist items must be verified, proof photo attached, and signature captured.",
-      });
+      setSubmitError('All checklist items must be verified, proof photo attached, and signature captured.');
       return;
     }
 
     const svgSignature = generateSvgPath();
-
     setIsLoading(true);
-    setSubmitStatus({ type: "IDLE" });
+    setSubmitError(null);
 
     try {
       const res = await submitCommissioningSignApi({
         projectId,
-        vocVoltsMeasured: parseFloat(voc) || 0,
-        iscAmpsMeasured: parseFloat(isc) || 0,
-        earthingResistanceOhms: parseFloat(earthingOhms) || 0,
-        completionPhotoUrl:
-          "https://storage.sunpower-ims.local/sites/prj-089-final.jpg",
-        customerSignatureSvg: svgSignature,
+        vocVolts: parseFloat(vocVolts) || 0,
+        iscAmperes: parseFloat(iscAmperes) || 0,
+        earthingResistanceOhms: parseFloat(earthingResistanceOhms) || 0,
+        signatureSvg: svgSignature,
+        completionPhotoUrl: 'https://storage.sunpower.internal/commissioning/roof-089.jpg',
       });
 
-      setSubmitStatus({
-        type: "SUCCESS",
-        text: `Commissioning record [${res.recordId ?? "COMM-2026-X"}] locked. 20-year warranty active. State: [${res.projectStatus ?? "COMPLETED"}].`,
+      setCommissionedResult({
+        recordId: res.recordId ?? 'COMM-2026-089',
+        projectStatus: res.projectStatus ?? 'COMMISSIONED',
+        warrantyStartDate: res.warrantyStartDate ?? new Date().toISOString().split('T')[0],
       });
     } catch (err) {
       if (err instanceof ApiError) {
-        setSubmitStatus({
-          type: "ERROR",
-          text: `API Error (${err.code}): ${err.message}`,
-        });
+        setSubmitError(`API Error (${err.code}): ${err.message}`);
       } else {
-        setSubmitStatus({
-          type: "ERROR",
-          text: "Failed to record commissioning. Check server endpoint.",
-        });
+        setSubmitError('Failed to record commissioning. Check server connection.');
       }
     } finally {
       setIsLoading(false);
@@ -250,6 +211,19 @@ export const SignoffCanvas: React.FC = () => {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
+      {/* Immediate State Transition Feedback Banner */}
+      {commissionedResult && (
+        <div className="p-5 rounded-lg bg-green-50 border-2 border-enterprise-forest shadow-sm text-xs space-y-2">
+          <div className="flex items-center gap-2 text-enterprise-forest font-bold text-sm">
+            <Award className="w-5 h-5 shrink-0" />
+            Project Successfully Transitioned to [{commissionedResult.projectStatus}]
+          </div>
+          <p className="text-slate-700">
+            Commissioning certificate <strong className="font-mono">{commissionedResult.recordId}</strong> locked. 20-year legal warranty clock commenced on <strong>{commissionedResult.warrantyStartDate}</strong>.
+          </p>
+        </div>
+      )}
+
       <div className="bg-enterprise-surface p-6 rounded-lg border border-enterprise-border shadow-sm">
         <div className="flex items-center justify-between border-b border-enterprise-border pb-4">
           <div>
@@ -260,11 +234,13 @@ export const SignoffCanvas: React.FC = () => {
               Field Commissioning & Customer Signoff
             </h2>
             <p className="text-xs text-enterprise-smoke">
-              POST /api/commissioning/sign (Section 5.1 & Signoff Canvas Proof)
+              POST /api/commissioning/sign (Captures vector SVG & generation metrics)
             </p>
           </div>
-          <span className="px-3 py-1 rounded text-xs font-medium bg-amber-50 text-enterprise-amber border border-amber-200">
-            COMMISSIONING DUE
+          <span className={`px-3 py-1 rounded text-xs font-medium border ${
+            commissionedResult ? 'bg-green-50 text-enterprise-forest border-green-200' : 'bg-amber-50 text-enterprise-amber border-amber-200'
+          }`}>
+            {commissionedResult ? 'COMMISSIONED' : 'COMMISSIONING DUE'}
           </span>
         </div>
 
@@ -282,33 +258,29 @@ export const SignoffCanvas: React.FC = () => {
                   <input
                     type="number"
                     step="0.1"
-                    value={voc}
-                    onChange={(e) => setVoc(e.target.value)}
+                    value={vocVolts}
+                    onChange={(e) => setVocVolts(e.target.value)}
                     required
                     className="w-full bg-enterprise-surface border border-enterprise-border rounded px-3 py-2 text-sm text-enterprise-charcoal focus:border-enterprise-blue focus:outline-none"
                   />
-                  <span className="absolute right-3 top-2 text-xs text-enterprise-smoke">
-                    V
-                  </span>
+                  <span className="absolute right-3 top-2 text-xs text-enterprise-smoke">V</span>
                 </div>
               </div>
 
               <div>
                 <label className="block text-xs font-medium text-enterprise-smoke mb-1">
-                  Isc (Measured Amps)
+                  Isc (Measured Amperes)
                 </label>
                 <div className="relative">
                   <input
                     type="number"
                     step="0.1"
-                    value={isc}
-                    onChange={(e) => setIsc(e.target.value)}
+                    value={iscAmperes}
+                    onChange={(e) => setIscAmperes(e.target.value)}
                     required
                     className="w-full bg-enterprise-surface border border-enterprise-border rounded px-3 py-2 text-sm text-enterprise-charcoal focus:border-enterprise-blue focus:outline-none"
                   />
-                  <span className="absolute right-3 top-2 text-xs text-enterprise-smoke">
-                    A
-                  </span>
+                  <span className="absolute right-3 top-2 text-xs text-enterprise-smoke">A</span>
                 </div>
               </div>
 
@@ -320,14 +292,12 @@ export const SignoffCanvas: React.FC = () => {
                   <input
                     type="number"
                     step="0.01"
-                    value={earthingOhms}
-                    onChange={(e) => setEarthingOhms(e.target.value)}
+                    value={earthingResistanceOhms}
+                    onChange={(e) => setEarthingResistanceOhms(e.target.value)}
                     required
                     className="w-full bg-enterprise-surface border border-enterprise-border rounded px-3 py-2 text-sm text-enterprise-charcoal focus:border-enterprise-blue focus:outline-none"
                   />
-                  <span className="absolute right-3 top-2 text-xs text-enterprise-smoke">
-                    Ω
-                  </span>
+                  <span className="absolute right-3 top-2 text-xs text-enterprise-smoke">Ω</span>
                 </div>
               </div>
             </div>
@@ -347,18 +317,17 @@ export const SignoffCanvas: React.FC = () => {
                   <div
                     className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
                       item.done
-                        ? "bg-enterprise-forest border-enterprise-forest text-white"
-                        : "border-enterprise-border bg-white"
+                        ? 'bg-enterprise-forest border-enterprise-forest text-white'
+                        : 'border-enterprise-border bg-white'
                     }`}
                   >
-                    {/* Line 313 */}
                     {item.done && <Check className="w-3.5 h-3.5 stroke-3" />}
                   </div>
                   <span
                     className={`text-sm ${
                       item.done
-                        ? "text-enterprise-charcoal font-medium"
-                        : "text-enterprise-smoke"
+                        ? 'text-enterprise-charcoal font-medium'
+                        : 'text-enterprise-smoke'
                     }`}
                   >
                     {item.label}
@@ -376,8 +345,8 @@ export const SignoffCanvas: React.FC = () => {
               onClick={() => setPhotoSelected(!photoSelected)}
               className={`border-2 border-dashed rounded-lg p-5 text-center cursor-pointer transition-colors ${
                 photoSelected
-                  ? "border-enterprise-forest bg-green-50/50"
-                  : "border-enterprise-border bg-enterprise-bg hover:border-enterprise-blue"
+                  ? 'border-enterprise-forest bg-green-50/50'
+                  : 'border-enterprise-border bg-enterprise-bg hover:border-enterprise-blue'
               }`}
             >
               <div className="flex flex-col items-center gap-2">
@@ -387,9 +356,7 @@ export const SignoffCanvas: React.FC = () => {
                     <span className="text-xs font-semibold text-enterprise-forest">
                       site_commissioning_roof_089.jpg (Attached - 4.2 MB)
                     </span>
-                    <span className="text-[11px] text-enterprise-smoke">
-                      Tap to replace
-                    </span>
+                    <span className="text-[11px] text-enterprise-smoke">Tap to replace</span>
                   </>
                 ) : (
                   <>
@@ -434,29 +401,27 @@ export const SignoffCanvas: React.FC = () => {
             </div>
           </div>
 
-          {submitStatus.type === "ERROR" && (
+          {submitError && (
             <div className="p-3 rounded bg-red-50 border border-red-200 flex items-center gap-2 text-xs text-enterprise-brick font-medium">
               <ShieldAlert className="w-4 h-4 shrink-0" />
-              {submitStatus.text}
-            </div>
-          )}
-
-          {submitStatus.type === "SUCCESS" && (
-            <div className="p-3 rounded bg-green-50 border border-green-200 flex items-center gap-2 text-xs text-enterprise-forest font-semibold">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              {submitStatus.text}
+              {submitError}
             </div>
           )}
 
           <button
             type="submit"
-            disabled={isLoading}
+            disabled={isLoading || commissionedResult !== null}
             className="w-full bg-enterprise-navy hover:bg-slate-800 text-white font-medium py-3 rounded-lg text-sm transition-colors shadow flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
           >
             {isLoading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
                 Submitting & Activating 20-Yr Warranties...
+              </>
+            ) : commissionedResult ? (
+              <>
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                Sign-Off Record Locked
               </>
             ) : (
               <>

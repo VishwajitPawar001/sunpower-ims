@@ -15,12 +15,14 @@ export interface ApiResponse<T> {
 
 export class ApiError extends Error {
   code: string;
+  status: number;
   fieldErrors?: Record<string, string[]> | null;
 
-  constructor(error: ApiErrorPayload) {
+  constructor(status: number, error: ApiErrorPayload) {
     super(error.message);
     this.name = 'ApiError';
-    this.code = error.code || 'API_ERROR';
+    this.status = status;
+    this.code = error.code || `HTTP_${status}`;
     this.fieldErrors = error.fieldErrors;
   }
 }
@@ -46,13 +48,31 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   }));
 
   if (!res.ok || !payload.success) {
-    throw new ApiError(payload.error ?? { code: `HTTP_${res.status}`, message: res.statusText });
+    throw new ApiError(res.status, payload.error ?? { code: `HTTP_${res.status}`, message: res.statusText });
   }
 
   return payload.data as T;
 }
 
-// 1. Sales Leads & Quotes
+// 1. Authentication
+export interface LoginResponse {
+  token: string;
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    role: 'ADMIN' | 'SALES' | 'SURVEYOR' | 'WAREHOUSE' | 'TECHNICIAN';
+  };
+}
+
+export async function loginApi(credentials: { email: string; password: string }): Promise<LoginResponse> {
+  return request<LoginResponse>('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify(credentials),
+  });
+}
+
+// 2. Sales CRM & Quotes
 export async function getLeadsApi(): Promise<ProjectLead[]> {
   return request<ProjectLead[]>('/api/leads', { method: 'GET' });
 }
@@ -70,21 +90,19 @@ export async function createLeadApi(data: {
   });
 }
 
-export interface QuoteGeneratePayload {
+export async function generateQuoteApi(data: {
   projectId: string;
   capacityKw: number;
   systemType: 'ON_GRID' | 'OFF_GRID';
   agreedPrice: number;
-}
-
-export async function generateQuoteApi(data: QuoteGeneratePayload): Promise<{ quoteId: string; projectStatus: string }> {
+}): Promise<{ quoteId: string; projectStatus: string }> {
   return request('/api/quotes/generate', {
     method: 'POST',
     body: JSON.stringify(data),
   });
 }
 
-// 2. Surveyor Feasibility
+// 3. Surveyor Feasibility
 export type SiteSurveyPayload = SiteSurveyInput;
 
 export async function submitSurveyApi(data: SiteSurveyInput): Promise<{ surveyId: string; projectStatus: string }> {
@@ -94,67 +112,105 @@ export async function submitSurveyApi(data: SiteSurveyInput): Promise<{ surveyId
   });
 }
 
-// 3. Warehouse Dispatch
-export interface DispatchScanPayload {
-  projectId: string;
-  serialNumbers: string[];
+// 4. Warehouse Dispatch Barcode Scan (POST /api/dispatch/scan)
+export interface DispatchScanResult {
+  serialNumber: string;
+  category: string;
+  modelName: string;
+  dispatchedAt: string;
+  projectStatus: string;
 }
 
-export async function submitDispatchScanApi(data: DispatchScanPayload): Promise<{ dispatchedCount: number; projectStatus: string }> {
-  return request('/api/dispatch', {
+export async function scanDispatchBarcodeApi(data: {
+  projectId: string;
+  serialNumber: string;
+}): Promise<DispatchScanResult> {
+  return request<DispatchScanResult>('/api/dispatch/scan', {
     method: 'POST',
     body: JSON.stringify(data),
   });
 }
 
-// Alias to maintain compatibility across component implementations
-export const commitDispatchScanApi = submitDispatchScanApi;
-
-// 4. Technician Signoff
+// 5. Technician Commissioning Sign-Off (POST /api/commissioning/sign)
 export interface CommissioningSignPayload {
   projectId: string;
-  vocVoltsMeasured: number;
-  iscAmpsMeasured: number;
+  vocVolts: number;
+  iscAmperes: number;
   earthingResistanceOhms: number;
-  completionPhotoUrl: string;
-  customerSignatureSvg: string;
+  signatureSvg: string;
+  completionPhotoUrl?: string;
 }
 
-export async function submitCommissioningSignApi(data: CommissioningSignPayload): Promise<{ recordId: string; projectStatus: string }> {
+export async function submitCommissioningSignApi(
+  data: CommissioningSignPayload
+): Promise<{ recordId: string; projectStatus: string; warrantyStartDate: string }> {
   return request('/api/commissioning/sign', {
     method: 'POST',
     body: JSON.stringify(data),
   });
 }
 
-// 5. Director Margins
-export interface ProjectMarginRecord {
-  code: string;
-  customer: string;
-  capacity: string;
-  invoice: number;
-  bom: number;
-  labor: number;
-  overhead: number;
-  profit: number;
-  marginPct: number;
-  status: string;
-}
-
-export interface FinanceMarginsData {
+// 6. Executive Margins (GET /api/analytics/margins)
+export interface AnalyticsMarginsData {
   totalRevenue: number;
-  totalBomCost: number;
-  laborCost: number;
-  overheadCost: number;
-  grossProfit: number;
+  totalEstimatedBOMCost: number;
+  totalLaborCost: number;
+  totalOverheadCost: number;
   grossMarginPercent: number;
-  activeProjectsCount: number;
-  openWarrantyTickets: number;
-  projects: ProjectMarginRecord[];
+  pipelineDistribution: {
+    leadReceived: number;
+    surveyPending: number;
+    surveyApproved: number;
+    quoteIssued: number;
+    orderConfirmed: number;
+    dispatched: number;
+    commissioned: number;
+    completed: number;
+    rejected: number;
+  };
+  projects: Array<{
+    code: string;
+    customer: string;
+    capacity: string;
+    invoice: number;
+    bom: number;
+    labor: number;
+    overhead: number;
+    profit: number;
+    marginPct: number;
+    status: string;
+  }>;
 }
 
-export async function fetchFinanceMarginsApi(): Promise<FinanceMarginsData> {
-  return request<FinanceMarginsData>('/api/finance/margins', {
+export async function fetchAnalyticsMarginsApi(): Promise<AnalyticsMarginsData> {
+  return request<AnalyticsMarginsData>('/api/analytics/margins', {
     method: 'GET',
+  });
+}
+
+// 7. Support Tickets (GET /api/tickets & PATCH /api/tickets/[id])
+export interface SupportTicket {
+  id: string;
+  ticketCode: string;
+  projectId: string;
+  projectCode: string;
+  customerName: string;
+  issueDescription: string;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
+  createdAt: string;
+}
+
+export async function getTicketsApi(): Promise<SupportTicket[]> {
+  return request<SupportTicket[]>('/api/tickets', { method: 'GET' });
+}
+
+export async function updateTicketStatusApi(
+  ticketId: string,
+  status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED'
+): Promise<SupportTicket> {
+  return request<SupportTicket>(`/api/tickets/${ticketId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
   });
 }

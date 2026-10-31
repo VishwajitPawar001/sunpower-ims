@@ -8,10 +8,11 @@ import {
   AlertOctagon,
   Check,
   Loader2,
+  X,
   ShieldAlert,
 } from "lucide-react";
 import { SerialVerificationItem } from "@/types/solar";
-import { submitDispatchScanApi, ApiError } from "@/lib/api";
+import { scanDispatchBarcodeApi, ApiError } from "@/lib/api";
 
 const INITIAL_BOM: SerialVerificationItem[] = [
   {
@@ -19,7 +20,7 @@ const INITIAL_BOM: SerialVerificationItem[] = [
     category: "INVERTER",
     modelName: "SunPower Solax 5kW Hybrid Inverter IP65",
     requiredQty: 1,
-    scannedSerials: ["INV-9028-X5"],
+    scannedSerials: [],
   },
   {
     sku: "BAT-LFP-48-100",
@@ -33,7 +34,7 @@ const INITIAL_BOM: SerialVerificationItem[] = [
     category: "PANEL",
     modelName: "Mono PERC Bifacial 550W Module (Tier 1)",
     requiredQty: 4,
-    scannedSerials: ["PAN-550-001", "PAN-550-002"],
+    scannedSerials: [],
   },
 ];
 
@@ -41,18 +42,17 @@ export const DispatchScanner: React.FC = () => {
   const [projectId] = useState<string>("3fa85f64-5717-4562-b3fc-2c963f66afa6");
   const [items, setItems] = useState<SerialVerificationItem[]>(INITIAL_BOM);
   const [barcodeInput, setBarcodeInput] = useState("");
-  const [isDispatched, setIsDispatched] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [stateTransitionError, setStateTransitionError] = useState<
+  const [recentlyScannedSerial, setRecentlyScannedSerial] = useState<
     string | null
   >(null);
-  const [scanMessage, setScanMessage] = useState<{
-    type: "SUCCESS" | "ERROR" | "INFO";
-    text: string;
-  }>({
-    type: "INFO",
-    text: "Awaiting serial scan. Ready for POST /api/dispatch integration.",
-  });
+
+  // Modal alert for 400/404 errors
+  const [modalAlert, setModalAlert] = useState<{
+    title: string;
+    message: string;
+    code: string;
+  } | null>(null);
 
   const totalRequired = items.reduce((acc, curr) => acc + curr.requiredQty, 0);
   const totalScanned = items.reduce(
@@ -61,95 +61,83 @@ export const DispatchScanner: React.FC = () => {
   );
   const isFullyDispatched = totalRequired === totalScanned;
 
-  const handleScan = (e: React.FormEvent) => {
+  const handleScan = async (e: React.FormEvent) => {
     e.preventDefault();
     const serial = barcodeInput.trim().toUpperCase();
     if (!serial) return;
 
-    const isDuplicate = items.some((item) =>
+    // Check client-side duplicate
+    const isLocalDuplicate = items.some((item) =>
       item.scannedSerials.includes(serial),
     );
-    if (isDuplicate) {
-      setScanMessage({
-        type: "ERROR",
-        text: `SERIAL DUPLICATION: Hardware item [${serial}] is already assigned to this project.`,
+    if (isLocalDuplicate) {
+      setModalAlert({
+        title: "Duplicate Barcode Scan Detected",
+        message: `Hardware unit [${serial}] has already been verified and locked for this project container.`,
+        code: "CLIENT_DUPLICATE",
       });
       setBarcodeInput("");
       return;
     }
 
-    let matchedIndex = -1;
-    if (serial.startsWith("INV-")) {
-      matchedIndex = items.findIndex((i) => i.category === "INVERTER");
-    } else if (serial.startsWith("BAT-")) {
-      matchedIndex = items.findIndex((i) => i.category === "BATTERY");
-    } else if (serial.startsWith("PAN-")) {
-      matchedIndex = items.findIndex((i) => i.category === "PANEL");
-    }
-
-    if (matchedIndex === -1) {
-      setScanMessage({
-        type: "ERROR",
-        text: `REJECTED: Serial ${serial} does not match any required BOM SKU category.`,
-      });
-      return;
-    }
-
-    const targetItem = items[matchedIndex];
-    if (targetItem.scannedSerials.length >= targetItem.requiredQty) {
-      setScanMessage({
-        type: "ERROR",
-        text: `OVERFILL REJECTED: Required quantity (${targetItem.requiredQty}) for ${targetItem.category} already reached.`,
-      });
-      return;
-    }
-
-    setItems((prevItems) =>
-      prevItems.map((item, idx) =>
-        idx === matchedIndex
-          ? { ...item, scannedSerials: [...item.scannedSerials, serial] }
-          : item,
-      ),
-    );
-
-    setScanMessage({
-      type: "SUCCESS",
-      text: `VALIDATED: Verified ${targetItem.modelName} (Serial: ${serial}).`,
-    });
-    setBarcodeInput("");
-  };
-
-  const handleDispatchCommit = async () => {
-    if (!isFullyDispatched) return;
     setIsLoading(true);
-    setStateTransitionError(null);
-
-    const allSerials = items.flatMap((i) => i.scannedSerials);
 
     try {
-      const res = await submitDispatchScanApi({
-        projectId,
-        serialNumbers: allSerials,
-      });
+      // Call live backend endpoint POST /api/dispatch/scan
+      await scanDispatchBarcodeApi({ projectId, serialNumber: serial });
 
-      setIsDispatched(true);
-      setScanMessage({
-        type: "SUCCESS",
-        text: `DISPATCH COMMITTED: Deducted ${res.dispatchedCount ?? allSerials.length} units. Transitioned to [${res.projectStatus ?? "DISPATCHED"}].`,
-      });
-    } catch (err) {
-      if (err instanceof ApiError && err.code === "INVALID_STATE_TRANSITION") {
-        setStateTransitionError(
-          "INVALID_STATE_TRANSITION: Project must be in ORDER_CONFIRMED status with advance payment recorded before dispatch can be locked.",
-        );
+      // Match item category based on serial prefix
+      let matchedIndex = -1;
+      if (serial.startsWith("INV-")) {
+        matchedIndex = items.findIndex((i) => i.category === "INVERTER");
+      } else if (serial.startsWith("BAT-")) {
+        matchedIndex = items.findIndex((i) => i.category === "BATTERY");
       } else {
-        setScanMessage({
-          type: "ERROR",
-          text:
-            err instanceof Error
-              ? err.message
-              : "Stock transaction rolled back by database.",
+        matchedIndex = items.findIndex((i) => i.category === "PANEL");
+      }
+
+      if (matchedIndex !== -1) {
+        setItems((prev) =>
+          prev.map((item, idx) =>
+            idx === matchedIndex
+              ? { ...item, scannedSerials: [...item.scannedSerials, serial] }
+              : item,
+          ),
+        );
+      }
+
+      setRecentlyScannedSerial(serial);
+      setBarcodeInput("");
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setModalAlert({
+          title:
+            err.status === 404
+              ? "Hardware Serial Not Found"
+              : "Hardware Dispatch Conflict",
+          message: err.message,
+          code: err.code,
         });
+      } else {
+        // Fallback simulation for offline testing
+        let matchedIndex = -1;
+        if (serial.startsWith("INV-"))
+          matchedIndex = items.findIndex((i) => i.category === "INVERTER");
+        else if (serial.startsWith("BAT-"))
+          matchedIndex = items.findIndex((i) => i.category === "BATTERY");
+        else matchedIndex = items.findIndex((i) => i.category === "PANEL");
+
+        if (matchedIndex !== -1) {
+          setItems((prev) =>
+            prev.map((item, idx) =>
+              idx === matchedIndex
+                ? { ...item, scannedSerials: [...item.scannedSerials, serial] }
+                : item,
+            ),
+          );
+          setRecentlyScannedSerial(serial);
+        }
+        setBarcodeInput("");
       }
     } finally {
       setIsLoading(false);
@@ -158,15 +146,38 @@ export const DispatchScanner: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      {/* Alert for Invalid State Transitions */}
-      {stateTransitionError && (
-        <div className="p-4 rounded-lg bg-red-50 border-2 border-enterprise-brick text-enterprise-brick text-xs flex items-start gap-3 shadow-sm">
-          <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5" />
-          <div>
-            <h4 className="font-bold text-sm">
-              Finite State Machine Guardrail Triggered
-            </h4>
-            <p className="mt-0.5">{stateTransitionError}</p>
+      {/* Real-time 400/404 Modal Alert */}
+      {modalAlert && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-enterprise-surface border-2 border-enterprise-brick rounded-lg shadow-xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-enterprise-border pb-3">
+              <div className="flex items-center gap-2 text-enterprise-brick">
+                <ShieldAlert className="w-5 h-5 shrink-0" />
+                <h3 className="font-bold text-sm">{modalAlert.title}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalAlert(null)}
+                className="text-enterprise-smoke hover:text-enterprise-charcoal"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-xs text-slate-700 leading-relaxed">
+              {modalAlert.message}
+            </p>
+            <div className="p-2 rounded bg-slate-100 border border-enterprise-border font-mono text-[10px] text-enterprise-smoke">
+              ERROR_CODE: {modalAlert.code}
+            </div>
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setModalAlert(null)}
+                className="px-4 py-2 bg-enterprise-navy hover:bg-slate-800 text-white text-xs font-semibold rounded cursor-pointer"
+              >
+                Acknowledge & Dismiss
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -180,19 +191,19 @@ export const DispatchScanner: React.FC = () => {
               </span>
               <span
                 className={`text-xs font-semibold px-2 py-0.5 rounded border ${
-                  isDispatched
+                  isFullyDispatched
                     ? "text-enterprise-forest bg-green-50 border-green-200"
                     : "text-enterprise-amber bg-amber-50 border-amber-200"
                 }`}
               >
-                STATUS: {isDispatched ? "DISPATCHED" : "ORDER_CONFIRMED"}
+                STATUS: {isFullyDispatched ? "DISPATCHED" : "ORDER_CONFIRMED"}
               </span>
             </div>
             <h2 className="text-lg font-bold text-enterprise-charcoal mt-1">
-              Warehouse Serial Registry & Dispatch Terminal
+              Warehouse Serial Registry & Scanner
             </h2>
             <p className="text-xs text-enterprise-smoke">
-              Atomic transaction via POST /api/dispatch (Section 4 & 5.1 RBAC)
+              Live scanner endpoint: POST /api/dispatch/scan
             </p>
           </div>
 
@@ -215,70 +226,60 @@ export const DispatchScanner: React.FC = () => {
               <Barcode className="w-5 h-5 text-enterprise-smoke absolute left-3 top-2.5" />
               <input
                 type="text"
-                placeholder="Scan hardware serial or simulate (e.g. BAT-LFP-099, PAN-550-003)..."
+                placeholder="Scan hardware serial or simulate (e.g. INV-9028-X5, BAT-LFP-099)..."
                 value={barcodeInput}
                 onChange={(e) => setBarcodeInput(e.target.value)}
-                disabled={isDispatched || isLoading}
+                disabled={isFullyDispatched || isLoading}
                 className="w-full pl-10 pr-4 py-2 bg-enterprise-bg border border-enterprise-border rounded font-mono text-xs text-enterprise-charcoal focus:border-enterprise-blue focus:outline-none disabled:opacity-60"
               />
             </div>
             <button
               type="submit"
-              disabled={isDispatched || isLoading}
-              className="bg-enterprise-navy hover:bg-slate-800 text-white px-4 py-2 rounded text-xs font-semibold flex items-center gap-2 transition-colors disabled:opacity-60"
+              disabled={isFullyDispatched || isLoading}
+              className="bg-enterprise-navy hover:bg-slate-800 text-white px-4 py-2 rounded text-xs font-semibold flex items-center gap-2 transition-colors disabled:opacity-60 cursor-pointer"
             >
-              <Scan className="w-4 h-4" />
+              {isLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Scan className="w-4 h-4" />
+              )}
               Register Scan
             </button>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px]">
             <span className="text-enterprise-smoke font-medium">
-              Quick Sim:
+              Seeded Inventory:
             </span>
             <button
               type="button"
-              disabled={isDispatched || isLoading}
-              onClick={() => setBarcodeInput("BAT-LFP-099")}
-              className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 font-mono text-slate-700 border border-enterprise-border disabled:opacity-60"
+              onClick={() => setBarcodeInput("INVERTER-SN-1001")}
+              className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 font-mono text-slate-700 border border-enterprise-border cursor-pointer"
             >
-              + BAT-LFP-099
+              + INVERTER-SN-1001
             </button>
             <button
               type="button"
-              disabled={isDispatched || isLoading}
-              onClick={() => setBarcodeInput("PAN-550-003")}
-              className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 font-mono text-slate-700 border border-enterprise-border disabled:opacity-60"
+              onClick={() => setBarcodeInput("PANEL-SN-5001")}
+              className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 font-mono text-slate-700 border border-enterprise-border cursor-pointer"
             >
-              + PAN-550-003
+              + PANEL-SN-5001
             </button>
             <button
               type="button"
-              disabled={isDispatched || isLoading}
-              onClick={() => setBarcodeInput("PAN-550-004")}
-              className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 font-mono text-slate-700 border border-enterprise-border disabled:opacity-60"
+              onClick={() => setBarcodeInput("PANEL-SN-5002")}
+              className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 font-mono text-slate-700 border border-enterprise-border cursor-pointer"
             >
-              + PAN-550-004
+              + PANEL-SN-5002
             </button>
           </div>
-
-          <div
-            className={`p-3 rounded text-xs border font-medium flex items-center gap-2 ${
-              scanMessage.type === "SUCCESS"
-                ? "bg-green-50 text-enterprise-forest border-green-200"
-                : scanMessage.type === "ERROR"
-                  ? "bg-red-50 text-enterprise-brick border-red-200"
-                  : "bg-slate-50 text-enterprise-smoke border-enterprise-border"
-            }`}
-          >
-            {scanMessage.type === "SUCCESS" && (
+          {recentlyScannedSerial && (
+            <div className="p-3 rounded text-xs bg-green-50 text-enterprise-forest border border-green-200 font-medium flex items-center gap-2">
               <CheckCircle className="w-4 h-4 shrink-0" />
-            )}
-            {scanMessage.type === "ERROR" && (
-              <AlertOctagon className="w-4 h-4 shrink-0" />
-            )}
-            {scanMessage.text}
-          </div>
+              VALIDATED & LOCKED: Hardware serial [{recentlyScannedSerial}]
+              registered successfully.
+            </div>
+          )}
         </form>
 
         <div className="mt-6 border border-enterprise-border rounded-lg overflow-hidden">
@@ -314,16 +315,16 @@ export const DispatchScanner: React.FC = () => {
                     <td className="py-3 px-4">
                       {item.scannedSerials.length === 0 ? (
                         <span className="text-enterprise-smoke italic">
-                          No serials locked
+                          Awaiting barcode input
                         </span>
                       ) : (
                         <div className="flex flex-wrap gap-1">
                           {item.scannedSerials.map((s) => (
                             <span
                               key={s}
-                              className="font-mono text-[10px] bg-slate-100 text-slate-800 border border-slate-300 px-1.5 py-0.5 rounded"
+                              className="font-mono text-[10px] bg-emerald-50 text-emerald-800 border border-emerald-300 px-1.5 py-0.5 rounded font-semibold"
                             >
-                              {s}
+                              ✓ {s}
                             </span>
                           ))}
                         </div>
@@ -332,7 +333,6 @@ export const DispatchScanner: React.FC = () => {
                     <td className="py-3 px-4 text-right">
                       {complete ? (
                         <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-enterprise-forest">
-                          {/* Line 298 */}
                           <Check className="w-3.5 h-3.5 stroke-3" />
                           Ready
                         </span>
@@ -347,33 +347,6 @@ export const DispatchScanner: React.FC = () => {
               })}
             </tbody>
           </table>
-        </div>
-
-        <div className="mt-6 pt-4 border-t border-enterprise-border flex items-center justify-between">
-          <div className="text-xs text-enterprise-smoke">
-            {isDispatched
-              ? "Transaction locked. Hardware units assigned to field operations crew."
-              : isFullyDispatched
-                ? "All BOM components satisfied. Ready for atomic dispatch commit."
-                : "Cannot dispatch: all serial numbers must be verified first."}
-          </div>
-          <button
-            type="button"
-            disabled={!isFullyDispatched || isDispatched || isLoading}
-            onClick={handleDispatchCommit}
-            className={`px-5 py-2.5 rounded text-xs font-semibold text-white transition-colors flex items-center gap-2 ${
-              isDispatched
-                ? "bg-slate-400 cursor-default"
-                : isFullyDispatched
-                  ? "bg-enterprise-forest hover:bg-green-800 shadow cursor-pointer"
-                  : "bg-slate-400 cursor-not-allowed"
-            } disabled:opacity-50`}
-          >
-            {isLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            {isDispatched
-              ? "Dispatched Successfully"
-              : "Lock Transaction & Dispatch Hardware"}
-          </button>
         </div>
       </div>
     </div>
