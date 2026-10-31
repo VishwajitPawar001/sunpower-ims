@@ -9,7 +9,13 @@ import {
   ShieldAlert, 
   Check, 
   Loader2,
-  Award
+  Award,
+  ClipboardCheck,
+  Zap,
+  Gauge,
+  PenTool,
+  ShieldCheck,
+  FileCheck
 } from 'lucide-react';
 import { submitCommissioningSignApi, ApiError } from '@/lib/api';
 
@@ -69,8 +75,21 @@ export const SignoffCanvas: React.FC = () => {
     ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#020617';
-  }, []);
+    ctx.strokeStyle = '#38bdf8';
+
+    // Redraw existing strokes if canvas dimensions reset
+    if (strokes.length > 0) {
+      strokes.forEach((stroke) => {
+        if (stroke.length === 0) return;
+        ctx.beginPath();
+        ctx.moveTo(stroke[0].x, stroke[0].y);
+        for (let i = 1; i < stroke.length; i++) {
+          ctx.lineTo(stroke[i].x, stroke[i].y);
+        }
+        ctx.stroke();
+      });
+    }
+  }, [strokes]);
 
   useEffect(() => {
     setupCanvas();
@@ -161,7 +180,7 @@ export const SignoffCanvas: React.FC = () => {
       }
     });
 
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"><path d="${pathData.trim()}" fill="none" stroke="#020617" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"><path d="${pathData.trim()}" fill="none" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   };
 
   const toggleChecklist = (id: string) => {
@@ -210,49 +229,66 @@ export const SignoffCanvas: React.FC = () => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      {/* Immediate State Transition Feedback Banner */}
+    <div className="max-w-4xl mx-auto space-y-6 text-slate-200">
+      {/* 20-Year Cryptographic Warranty Banner */}
       {commissionedResult && (
-        <div className="p-5 rounded-lg bg-green-50 border-2 border-enterprise-forest shadow-sm text-xs space-y-2">
-          <div className="flex items-center gap-2 text-enterprise-forest font-bold text-sm">
+        <div className="p-5 rounded-2xl bg-emerald-500/10 border-2 border-emerald-500/40 shadow-xl backdrop-blur-md text-xs space-y-2 animate-in fade-in duration-200">
+          <div className="flex items-center gap-2.5 text-emerald-400 font-bold text-sm tracking-tight">
             <Award className="w-5 h-5 shrink-0" />
-            Project Successfully Transitioned to [{commissionedResult.projectStatus}]
+            <span>GRID SYNCHRONIZATION CERTIFICATE LOCKED: [{commissionedResult.projectStatus}]</span>
           </div>
-          <p className="text-slate-700">
-            Commissioning certificate <strong className="font-mono">{commissionedResult.recordId}</strong> locked. 20-year legal warranty clock commenced on <strong>{commissionedResult.warrantyStartDate}</strong>.
+          <p className="text-slate-300 leading-relaxed">
+            Legal commissioning audit <strong className="font-mono text-white">{commissionedResult.recordId}</strong> verified with vector SVG proof. The 20-year inverter and 25-year linear performance warranty clock commenced on <strong className="font-mono text-amber-400">{commissionedResult.warrantyStartDate}</strong>.
           </p>
         </div>
       )}
 
-      <div className="bg-enterprise-surface p-6 rounded-lg border border-enterprise-border shadow-sm">
-        <div className="flex items-center justify-between border-b border-enterprise-border pb-4">
-          <div>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-slate-100 text-enterprise-smoke border border-enterprise-border uppercase tracking-wider">
-              PRJ-2026-089
-            </span>
-            <h2 className="text-lg font-bold text-enterprise-charcoal mt-1">
-              Field Commissioning & Customer Signoff
-            </h2>
-            <p className="text-xs text-enterprise-smoke">
-              POST /api/commissioning/sign (Captures vector SVG & generation metrics)
-            </p>
+      {/* Main Terminal Card */}
+      <div className="bg-[#0B111E]/90 p-6 rounded-2xl border border-slate-800 shadow-xl backdrop-blur-md">
+        {/* Terminal Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center shadow-lg shadow-amber-500/10">
+              <ClipboardCheck className="w-6 h-6 stroke-[2]" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-amber-400/10 text-amber-400 border border-amber-400/20">
+                  DOSSIER: PRJ-2026-089
+                </span>
+                <span className="text-[10px] font-mono bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700 font-normal">
+                  STAGE 05
+                </span>
+              </div>
+              <h2 className="text-xl font-bold text-white mt-1.5 tracking-tight flex items-center gap-2">
+                Field Commissioning & Customer Sign-Off Terminal
+              </h2>
+            </div>
           </div>
-          <span className={`px-3 py-1 rounded text-xs font-medium border ${
-            commissionedResult ? 'bg-green-50 text-enterprise-forest border-green-200' : 'bg-amber-50 text-enterprise-amber border-amber-200'
-          }`}>
-            {commissionedResult ? 'COMMISSIONED' : 'COMMISSIONING DUE'}
-          </span>
+
+          <div className="sm:text-right">
+            <span className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold border inline-flex items-center gap-1.5 ${
+              commissionedResult
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+            }`}>
+              <span className={`w-2 h-2 rounded-full ${commissionedResult ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'}`} />
+              {commissionedResult ? 'STATUS: COMMISSIONED' : 'STATUS: COMMISSIONING DUE'}
+            </span>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-6">
+          {/* Section 1: Generation Test Diagnostics */}
           <div>
-            <h3 className="text-sm font-semibold text-enterprise-charcoal uppercase tracking-wider mb-3">
-              1. Generation Test Diagnostics
-            </h3>
+            <div className="text-xs font-mono uppercase tracking-wider text-amber-400 font-semibold mb-3 flex items-center gap-1.5">
+              <Gauge className="w-3.5 h-3.5" />
+              1. Electrical Generation Test Diagnostics
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-enterprise-smoke mb-1">
-                  Voc (Measured Volts)
+              <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800">
+                <label className="block text-[11px] font-mono text-slate-400 mb-1.5">
+                  Voc (Measured Open-Circuit)
                 </label>
                 <div className="relative">
                   <input
@@ -261,15 +297,16 @@ export const SignoffCanvas: React.FC = () => {
                     value={vocVolts}
                     onChange={(e) => setVocVolts(e.target.value)}
                     required
-                    className="w-full bg-enterprise-surface border border-enterprise-border rounded px-3 py-2 text-sm text-enterprise-charcoal focus:border-enterprise-blue focus:outline-none"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm font-mono font-bold text-white focus:border-amber-400 focus:outline-none"
                   />
-                  <span className="absolute right-3 top-2 text-xs text-enterprise-smoke">V</span>
+                  <span className="absolute right-3 top-2.5 text-xs font-mono text-amber-400 font-bold">V</span>
                 </div>
+                <span className="text-[10px] text-slate-500 font-mono mt-1 block">Tolerated band: 360V - 420V</span>
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-enterprise-smoke mb-1">
-                  Isc (Measured Amperes)
+              <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800">
+                <label className="block text-[11px] font-mono text-slate-400 mb-1.5">
+                  Isc (Measured Short-Circuit)
                 </label>
                 <div className="relative">
                   <input
@@ -278,15 +315,16 @@ export const SignoffCanvas: React.FC = () => {
                     value={iscAmperes}
                     onChange={(e) => setIscAmperes(e.target.value)}
                     required
-                    className="w-full bg-enterprise-surface border border-enterprise-border rounded px-3 py-2 text-sm text-enterprise-charcoal focus:border-enterprise-blue focus:outline-none"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm font-mono font-bold text-white focus:border-amber-400 focus:outline-none"
                   />
-                  <span className="absolute right-3 top-2 text-xs text-enterprise-smoke">A</span>
+                  <span className="absolute right-3 top-2.5 text-xs font-mono text-amber-400 font-bold">A</span>
                 </div>
+                <span className="text-[10px] text-slate-500 font-mono mt-1 block">Expected yield: ~9.5A - 10.2A</span>
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-enterprise-smoke mb-1">
-                  Earthing Resistance
+              <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800">
+                <label className="block text-[11px] font-mono text-slate-400 mb-1.5">
+                  Earthing Electrode Resistance
                 </label>
                 <div className="relative">
                   <input
@@ -295,76 +333,86 @@ export const SignoffCanvas: React.FC = () => {
                     value={earthingResistanceOhms}
                     onChange={(e) => setEarthingResistanceOhms(e.target.value)}
                     required
-                    className="w-full bg-enterprise-surface border border-enterprise-border rounded px-3 py-2 text-sm text-enterprise-charcoal focus:border-enterprise-blue focus:outline-none"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm font-mono font-bold text-emerald-400 focus:border-amber-400 focus:outline-none"
                   />
-                  <span className="absolute right-3 top-2 text-xs text-enterprise-smoke">Ω</span>
+                  <span className="absolute right-3 top-2.5 text-xs font-mono text-emerald-400 font-bold">Ω</span>
                 </div>
+                <span className="text-[10px] text-emerald-400 font-mono mt-1 block">&lt; 5.0Ω IEC Grid Compliant</span>
               </div>
             </div>
           </div>
 
+          {/* Section 2: Physical Checklist */}
           <div>
-            <h3 className="text-sm font-semibold text-enterprise-charcoal uppercase tracking-wider mb-3">
-              2. On-Roof Physical Checklist
-            </h3>
-            <div className="space-y-2 border border-enterprise-border rounded-lg p-3 bg-enterprise-bg">
+            <div className="text-xs font-mono uppercase tracking-wider text-amber-400 font-semibold mb-3 flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              2. On-Roof Physical & Electrical Checklist
+            </div>
+            <div className="space-y-2 border border-slate-800 rounded-xl p-3 bg-slate-950/60">
               {checklist.map((item) => (
-                <label
+                <div
                   key={item.id}
                   onClick={() => toggleChecklist(item.id)}
-                  className="flex items-center gap-3 p-2 rounded cursor-pointer hover:bg-white transition-colors"
+                  className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${
+                    item.done
+                      ? 'bg-slate-900/80 border border-slate-800 text-white'
+                      : 'bg-slate-950/40 border border-slate-800/60 text-slate-400 hover:text-slate-200'
+                  }`}
                 >
                   <div
-                    className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                    className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
                       item.done
-                        ? 'bg-enterprise-forest border-enterprise-forest text-white'
-                        : 'border-enterprise-border bg-white'
+                        ? 'bg-emerald-500 border-emerald-400 text-slate-950'
+                        : 'border-slate-700 bg-slate-900'
                     }`}
                   >
-                    {item.done && <Check className="w-3.5 h-3.5 stroke-3" />}
+                    {item.done && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                   </div>
-                  <span
-                    className={`text-sm ${
-                      item.done
-                        ? 'text-enterprise-charcoal font-medium'
-                        : 'text-enterprise-smoke'
-                    }`}
-                  >
+                  <span className={`text-xs ${item.done ? 'font-semibold text-slate-100' : 'text-slate-400'}`}>
                     {item.label}
                   </span>
-                </label>
+                </div>
               ))}
             </div>
           </div>
 
+          {/* Section 3: Proof Photo Upload */}
           <div>
-            <h3 className="text-sm font-semibold text-enterprise-charcoal uppercase tracking-wider mb-3">
-              3. Array & Inverter Proof Photo
-            </h3>
+            <div className="text-xs font-mono uppercase tracking-wider text-amber-400 font-semibold mb-3 flex items-center gap-1.5">
+              <Camera className="w-3.5 h-3.5" />
+              3. Array & Inverter Ground-Truth Verification
+            </div>
             <div
               onClick={() => setPhotoSelected(!photoSelected)}
-              className={`border-2 border-dashed rounded-lg p-5 text-center cursor-pointer transition-colors ${
+              className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all ${
                 photoSelected
-                  ? 'border-enterprise-forest bg-green-50/50'
-                  : 'border-enterprise-border bg-enterprise-bg hover:border-enterprise-blue'
+                  ? 'border-emerald-500/50 bg-emerald-500/5'
+                  : 'border-slate-800 bg-slate-950/60 hover:border-slate-700'
               }`}
             >
               <div className="flex flex-col items-center gap-2">
                 {photoSelected ? (
                   <>
-                    <CheckCircle2 className="w-8 h-8 text-enterprise-forest" />
-                    <span className="text-xs font-semibold text-enterprise-forest">
-                      site_commissioning_roof_089.jpg (Attached - 4.2 MB)
+                    <div className="w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                      <CheckCircle2 className="w-6 h-6" />
+                    </div>
+                    <span className="text-xs font-bold text-white font-mono">
+                      site_commissioning_roof_089.jpg (Attached • 4.2 MB)
                     </span>
-                    <span className="text-[11px] text-enterprise-smoke">Tap to replace</span>
+                    <span className="text-[11px] text-emerald-400 font-mono">
+                      EXIF Geotag: 17.3850° N, 78.4867° E (Hyderabad)
+                    </span>
                   </>
                 ) : (
                   <>
-                    <div className="w-10 h-10 rounded-full bg-slate-200/70 flex items-center justify-center text-enterprise-smoke">
+                    <div className="w-10 h-10 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400">
                       <Camera className="w-5 h-5" />
                     </div>
-                    <span className="text-xs font-medium text-enterprise-charcoal">
-                      Upload or capture installation site photo
+                    <span className="text-xs font-medium text-slate-300">
+                      Upload or capture installation site photograph
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      Accepted: JPG, PNG, WEBP (Max 15MB)
                     </span>
                   </>
                 )}
@@ -372,21 +420,24 @@ export const SignoffCanvas: React.FC = () => {
             </div>
           </div>
 
+          {/* Section 4: Customer Sign-on-Glass */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-semibold text-enterprise-charcoal uppercase tracking-wider">
+              <div className="text-xs font-mono uppercase tracking-wider text-amber-400 font-semibold flex items-center gap-1.5">
+                <PenTool className="w-3.5 h-3.5" />
                 4. Customer Sign-on-Glass Proof (Vector SVG Capture)
-              </h3>
+              </div>
               <button
                 type="button"
                 onClick={clearCanvas}
-                className="flex items-center gap-1 text-xs text-enterprise-smoke hover:text-enterprise-brick font-medium cursor-pointer"
+                className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-rose-400 font-mono cursor-pointer transition-colors"
               >
                 <Eraser className="w-3.5 h-3.5" />
                 Clear Signature
               </button>
             </div>
-            <div className="border border-enterprise-border rounded-lg bg-white overflow-hidden shadow-inner">
+            
+            <div className="border border-slate-800 rounded-xl bg-[#060A12] overflow-hidden relative shadow-inner">
               <canvas
                 ref={canvasRef}
                 onMouseDown={startDrawing}
@@ -396,37 +447,43 @@ export const SignoffCanvas: React.FC = () => {
                 onTouchStart={startDrawing}
                 onTouchMove={draw}
                 onTouchEnd={stopDrawing}
-                className="w-full h-44 touch-none cursor-crosshair bg-white block"
+                className="w-full h-44 touch-none cursor-crosshair block"
               />
+              {!hasSignature && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-slate-600 font-mono text-xs">
+                  Draw authorized customer signature above
+                </div>
+              )}
             </div>
           </div>
 
           {submitError && (
-            <div className="p-3 rounded bg-red-50 border border-red-200 flex items-center gap-2 text-xs text-enterprise-brick font-medium">
+            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center gap-2.5 text-xs text-rose-400 font-medium">
               <ShieldAlert className="w-4 h-4 shrink-0" />
-              {submitError}
+              <span>{submitError}</span>
             </div>
           )}
 
+          {/* Submission CTA */}
           <button
             type="submit"
             disabled={isLoading || commissionedResult !== null}
-            className="w-full bg-enterprise-navy hover:bg-slate-800 text-white font-medium py-3 rounded-lg text-sm transition-colors shadow flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+            className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3.5 rounded-xl text-xs transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer active:scale-95"
           >
             {isLoading ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Submitting & Activating 20-Yr Warranties...
+                <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                Commencing 20-Yr Warranty & Encrypting Signoff...
               </>
             ) : commissionedResult ? (
               <>
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                Sign-Off Record Locked
+                <ShieldCheck className="w-4 h-4" />
+                Sign-Off Record & Warranty Clock Locked
               </>
             ) : (
               <>
-                <Upload className="w-4 h-4" />
-                Submit Final Commissioning & Lock Record
+                <Upload className="w-4 h-4 stroke-[2.5]" />
+                Authorize Commissioning & Lock 20-Yr Warranty
               </>
             )}
           </button>

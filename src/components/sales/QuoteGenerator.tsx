@@ -9,7 +9,11 @@ import {
   Battery, 
   Layers, 
   Loader2, 
-  AlertCircle 
+  AlertCircle,
+  Zap,
+  TrendingUp,
+  Cpu,
+  CheckCircle2
 } from 'lucide-react';
 import { SystemType } from '@/types/solar';
 import { generateQuoteApi } from '@/lib/api';
@@ -41,7 +45,7 @@ export const QuoteGenerator: React.FC = () => {
       {
         sku: 'PV-TOP-550-BIF',
         category: 'PANEL',
-        name: `Mono PERC Bifacial 550W Module (Tier 1)`,
+        name: 'Mono PERC Bifacial 550W Module (Tier 1)',
         qty: panelCount,
         unitCost: 11500,
       },
@@ -62,7 +66,7 @@ export const QuoteGenerator: React.FC = () => {
       {
         sku: 'BOS-SOLAR-KIT',
         category: 'BOS',
-        name: `4 sq mm Solar DC Cable (${cableRunMeters * 2}m) + AC/DC DB + MC4 Connectors`,
+        name: `4 sq mm Solar DC Cable (${cableRunMeters}m) + AC/DC DB + MC4 Connectors`,
         qty: 1,
         unitCost: 12000 + (cableRunMeters > 30 ? (cableRunMeters - 30) * 250 : 0),
       },
@@ -113,40 +117,49 @@ export const QuoteGenerator: React.FC = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="bg-enterprise-surface p-6 rounded-lg border border-enterprise-border shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-enterprise-border pb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded bg-slate-100 text-enterprise-blue flex items-center justify-center">
-              <Calculator className="w-6 h-6" />
+    <div className="max-w-5xl mx-auto space-y-6 text-slate-200">
+      {/* Top Header Card */}
+      <div className="bg-[#0B111E]/90 p-6 rounded-2xl border border-slate-800 shadow-xl backdrop-blur-md">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center shadow-lg shadow-amber-500/10">
+              <Cpu className="w-6 h-6 stroke-[2]" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-slate-100 text-enterprise-smoke border border-enterprise-border">
+                <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-amber-400/10 text-amber-400 border border-amber-400/20">
                   PRJ-2026-088
                 </span>
-                <span className="text-xs font-semibold px-2 py-0.5 rounded bg-green-50 text-enterprise-forest border border-green-200">
+                <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" />
                   SURVEY_APPROVED
                 </span>
               </div>
-              <h2 className="text-lg font-bold text-enterprise-charcoal mt-1">
-                Quote & Dynamic Bill of Materials (BOM) Engine
+              <h2 className="text-xl font-bold text-white mt-1.5 tracking-tight flex items-center gap-2">
+                Engineering BOM & Dynamic Sizing Engine
+                <span className="text-[10px] font-mono bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700 font-normal">
+                  STAGE 03
+                </span>
               </h2>
             </div>
           </div>
 
-          <div className="text-right">
-            <div className="text-2xl font-bold font-mono text-enterprise-charcoal">
+          <div className="sm:text-right">
+            <div className="text-3xl font-extrabold font-mono text-amber-400 tracking-tight">
               ₹{quotePrice.toLocaleString('en-IN')}
             </div>
-            <div className="text-[11px] text-enterprise-smoke font-medium">Estimated Client Price (Excl. GST)</div>
+            <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+              Client Valuation (Excl. 18% GST)
+            </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mt-5">
+        {/* Configuration Controls */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mt-6">
+          {/* Sizing Buttons */}
           <div>
-            <label className="block text-xs font-semibold text-enterprise-charcoal mb-1">
-              System Sizing (1.0 kW - 5.0 kW) *
+            <label className="block text-xs font-semibold text-slate-300 mb-2">
+              Array Sizing (1.0 kWp - 5.0 kWp) *
             </label>
             <div className="grid grid-cols-5 gap-1.5">
               {[1.0, 2.0, 3.0, 4.0, 5.0].map((kw) => (
@@ -155,10 +168,10 @@ export const QuoteGenerator: React.FC = () => {
                   type="button"
                   disabled={isLocked || isLoading}
                   onClick={() => setSelectedCapacity(kw)}
-                  className={`py-2 rounded text-xs font-mono font-bold border transition-colors ${
+                  className={`py-2 rounded-lg text-xs font-mono font-bold border transition-all cursor-pointer ${
                     selectedCapacity === kw
-                      ? 'bg-enterprise-blue text-white border-enterprise-blue'
-                      : 'bg-enterprise-bg border-enterprise-border text-enterprise-charcoal hover:bg-slate-100'
+                      ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md shadow-amber-500/25 ring-1 ring-amber-400'
+                      : 'bg-slate-950/70 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800'
                   }`}
                 >
                   {kw}k
@@ -167,43 +180,45 @@ export const QuoteGenerator: React.FC = () => {
             </div>
           </div>
 
+          {/* Grid Topology Switcher */}
           <div>
-            <label className="block text-xs font-semibold text-enterprise-charcoal mb-1">
-              Grid Configuration *
+            <label className="block text-xs font-semibold text-slate-300 mb-2">
+              Inverter & Storage Topology *
             </label>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 disabled={isLocked || isLoading}
                 onClick={() => setSystemType('ON_GRID')}
-                className={`py-2 rounded text-xs font-medium border flex items-center justify-center gap-1.5 transition-colors ${
+                className={`py-2 px-3 rounded-lg text-xs font-semibold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                   systemType === 'ON_GRID'
-                    ? 'bg-enterprise-blue text-white border-enterprise-blue'
-                    : 'bg-enterprise-bg border-enterprise-border text-enterprise-charcoal hover:bg-slate-100'
+                    ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md shadow-amber-500/25'
+                    : 'bg-slate-950/70 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800'
                 }`}
               >
-                <Sun className="w-3.5 h-3.5" />
+                <Sun className={`w-3.5 h-3.5 ${systemType === 'ON_GRID' ? 'text-slate-950' : 'text-amber-400'}`} />
                 On-Grid
               </button>
               <button
                 type="button"
                 disabled={isLocked || isLoading}
                 onClick={() => setSystemType('OFF_GRID')}
-                className={`py-2 rounded text-xs font-medium border flex items-center justify-center gap-1.5 transition-colors ${
+                className={`py-2 px-3 rounded-lg text-xs font-semibold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                   systemType === 'OFF_GRID'
-                    ? 'bg-enterprise-blue text-white border-enterprise-blue'
-                    : 'bg-enterprise-bg border-enterprise-border text-enterprise-charcoal hover:bg-slate-100'
+                    ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md shadow-amber-500/25'
+                    : 'bg-slate-950/70 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800'
                 }`}
               >
-                <Battery className="w-3.5 h-3.5" />
+                <Battery className={`w-3.5 h-3.5 ${systemType === 'OFF_GRID' ? 'text-slate-950' : 'text-emerald-400'}`} />
                 Off-Grid
               </button>
             </div>
           </div>
 
+          {/* Cable Run */}
           <div>
-            <label className="block text-xs font-semibold text-enterprise-charcoal mb-1">
-              Survey Cable Length (Meters)
+            <label className="block text-xs font-semibold text-slate-300 mb-2">
+              Survey DC Cable Length (Meters)
             </label>
             <input
               type="number"
@@ -212,107 +227,120 @@ export const QuoteGenerator: React.FC = () => {
               disabled={isLocked || isLoading}
               value={cableRunMeters}
               onChange={(e) => setCableRunMeters(parseInt(e.target.value) || 10)}
-              className="w-full bg-enterprise-surface border border-enterprise-border rounded px-3 py-1.5 text-xs font-mono text-enterprise-charcoal focus:border-enterprise-blue focus:outline-none"
+              className="w-full bg-slate-950/70 border border-slate-800 rounded-lg px-3 py-2 text-xs font-mono text-white focus:border-amber-400 focus:outline-none"
             />
-            <span className="text-[11px] text-enterprise-smoke">Imported from site survey</span>
+            <span className="text-[10px] text-slate-500 font-mono mt-1 block">
+              Survey telemetry input (drop &gt;30m surcharge applied)
+            </span>
           </div>
         </div>
 
-        <div className="mt-6 border border-enterprise-border rounded-lg overflow-hidden">
-          <div className="px-4 py-2.5 bg-slate-50 border-b border-enterprise-border flex items-center justify-between">
-            <span className="text-xs font-semibold text-enterprise-charcoal uppercase tracking-wider flex items-center gap-2">
-              <Layers className="w-4 h-4 text-enterprise-blue" />
-              Dynamic Bill of Materials (BOM)
+        {/* Dynamic Bill of Materials Table */}
+        <div className="mt-6 border border-slate-800 rounded-xl overflow-hidden bg-slate-950/60">
+          <div className="px-4 py-3 bg-[#070B14]/80 border-b border-slate-800 flex items-center justify-between">
+            <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+              <Layers className="w-4 h-4 text-amber-400" />
+              Dynamic Bill of Materials (BOM) Matrix
             </span>
-            <span className="text-[11px] text-enterprise-smoke font-mono">
-              Auto-generated per Section 1 & Section 2
+            <span className="text-[11px] text-slate-400 font-mono">
+              Auto-calculated per IEC 62548 Specs
             </span>
           </div>
 
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-slate-50/50 border-b border-enterprise-border text-enterprise-smoke font-semibold uppercase tracking-wider">
-                <th className="py-2.5 px-4">Component</th>
-                <th className="py-2.5 px-4">Category</th>
-                <th className="py-2.5 px-4 text-center">Qty</th>
-                <th className="py-2.5 px-4 text-right">Unit Rate</th>
-                <th className="py-2.5 px-4 text-right">Subtotal</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-enterprise-border font-mono">
-              {bomItems.map((item) => (
-                <tr key={item.sku} className="hover:bg-slate-50/50">
-                  <td className="py-3 px-4 font-sans font-medium text-enterprise-charcoal">
-                    {item.name}
-                    <div className="text-[10px] text-enterprise-smoke font-mono">{item.sku}</div>
-                  </td>
-                  <td className="py-3 px-4 font-sans text-enterprise-smoke">
-                    <span className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-[10px] font-medium">
-                      {item.category}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-center text-enterprise-charcoal font-semibold">
-                    {item.qty}
-                  </td>
-                  <td className="py-3 px-4 text-right text-enterprise-smoke">
-                    ₹{item.unitCost.toLocaleString('en-IN')}
-                  </td>
-                  <td className="py-3 px-4 text-right font-bold text-enterprise-charcoal">
-                    ₹{(item.qty * item.unitCost).toLocaleString('en-IN')}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-[#070B14]/40 border-b border-slate-800 text-slate-400 font-mono uppercase text-[11px] tracking-wider">
+                  <th className="py-3 px-4">Component Specification</th>
+                  <th className="py-3 px-4">Category</th>
+                  <th className="py-3 px-4 text-center">Quantity</th>
+                  <th className="py-3 px-4 text-right">Unit Rate</th>
+                  <th className="py-3 px-4 text-right">Subtotal</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-800/80 font-mono">
+                {bomItems.map((item) => (
+                  <tr key={item.sku} className="hover:bg-slate-800/30 transition-colors">
+                    <td className="py-3 px-4 font-sans font-medium text-white">
+                      {item.name}
+                      <div className="text-[10px] text-amber-400/80 font-mono mt-0.5">{item.sku}</div>
+                    </td>
+                    <td className="py-3 px-4 font-sans text-slate-400">
+                      <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px] font-mono text-slate-300">
+                        {item.category}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-center text-white font-bold">
+                      {item.qty}
+                    </td>
+                    <td className="py-3 px-4 text-right text-slate-400">
+                      ₹{item.unitCost.toLocaleString('en-IN')}
+                    </td>
+                    <td className="py-3 px-4 text-right font-bold text-slate-200">
+                      ₹{(item.qty * item.unitCost).toLocaleString('en-IN')}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
 
-        <div className="mt-5 p-4 rounded-lg bg-enterprise-bg border border-enterprise-border grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-mono">
-          <div>
-            <div className="text-enterprise-smoke font-sans">Hardware BOM:</div>
-            <div className="font-bold text-enterprise-charcoal mt-0.5">₹{hardwareCost.toLocaleString('en-IN')}</div>
+        {/* Unit Economics Telemetry HUD */}
+        <div className="mt-5 p-4 rounded-xl bg-slate-950/80 border border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs font-mono">
+          <div className="p-2.5 rounded-lg bg-[#0B111E] border border-slate-800">
+            <div className="text-slate-400 font-sans text-[11px]">Hardware COGS:</div>
+            <div className="text-sm font-bold text-white mt-1">₹{hardwareCost.toLocaleString('en-IN')}</div>
           </div>
-          <div>
-            <div className="text-enterprise-smoke font-sans">Labor & Racking:</div>
-            <div className="font-bold text-enterprise-charcoal mt-0.5">₹{laborCost.toLocaleString('en-IN')}</div>
+          <div className="p-2.5 rounded-lg bg-[#0B111E] border border-slate-800">
+            <div className="text-slate-400 font-sans text-[11px]">Labor & Racking:</div>
+            <div className="text-sm font-bold text-white mt-1">₹{laborCost.toLocaleString('en-IN')}</div>
           </div>
-          <div>
-            <div className="text-enterprise-smoke font-sans">Overhead Allocation:</div>
-            <div className="font-bold text-enterprise-charcoal mt-0.5">₹{overheadCost.toLocaleString('en-IN')}</div>
+          <div className="p-2.5 rounded-lg bg-[#0B111E] border border-slate-800">
+            <div className="text-slate-400 font-sans text-[11px]">Overhead Allocation:</div>
+            <div className="text-sm font-bold text-white mt-1">₹{overheadCost.toLocaleString('en-IN')}</div>
           </div>
-          <div>
-            <div className="text-enterprise-smoke font-sans">Projected Margin:</div>
-            <div className="font-bold text-enterprise-forest mt-0.5">{marginPercent}% (₹{projectedProfit.toLocaleString('en-IN')})</div>
+          <div className="p-2.5 rounded-lg bg-[#0B111E] border border-slate-800">
+            <div className="text-slate-400 font-sans text-[11px]">Gross Margin:</div>
+            <div className="text-sm font-bold text-emerald-400 mt-1 flex items-center gap-1.5">
+              <TrendingUp className="w-3.5 h-3.5" />
+              {marginPercent}% (₹{projectedProfit.toLocaleString('en-IN')})
+            </div>
           </div>
         </div>
 
         {errorMessage && (
-          <div className="mt-4 p-3 rounded bg-red-50 border border-red-200 text-xs text-enterprise-brick flex items-center gap-2">
+          <div className="mt-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-xs text-rose-400 flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
-            {errorMessage}
+            <span>{errorMessage}</span>
           </div>
         )}
 
-        <div className="mt-6 pt-4 border-t border-enterprise-border flex items-center justify-between">
-          <div className="text-xs text-enterprise-smoke">
-            {isLocked
-              ? 'BOM locked in database. State transitioned to [QUOTE_ISSUED].'
-              : 'Locking generates official proposal and activates customer confirmation step.'}
+        {/* Action Footer */}
+        <div className="mt-6 pt-4 border-t border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="text-xs text-slate-400 flex items-center gap-1.5">
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <span>
+              {isLocked
+                ? 'BOM locked in database. State transitioned to [QUOTE_ISSUED].'
+                : 'Locking generates official proposal and advances lifecycle to Hardware Dispatch.'}
+            </span>
           </div>
 
           <button
             type="button"
             disabled={isLocked || isLoading}
             onClick={handleIssueQuote}
-            className={`px-5 py-2.5 rounded text-xs font-semibold text-white transition-colors flex items-center gap-2 ${
+            className={`px-5 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 shadow-lg ${
               isLocked
-                ? 'bg-enterprise-forest cursor-default'
-                : 'bg-enterprise-navy hover:bg-slate-800 shadow cursor-pointer'
+                ? 'bg-emerald-500 text-slate-950 shadow-emerald-500/20 cursor-default'
+                : 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/20 cursor-pointer active:scale-95'
             } disabled:opacity-50`}
           >
             {isLoading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Processing Transaction...
+                Encrypting & Issuing Proposal...
               </>
             ) : isLocked ? (
               <>
@@ -322,7 +350,7 @@ export const QuoteGenerator: React.FC = () => {
             ) : (
               <>
                 <FileCheck className="w-4 h-4" />
-                Lock BOM & Issue Quote
+                Lock BOM & Issue Official Quote
               </>
             )}
           </button>
