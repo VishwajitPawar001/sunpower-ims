@@ -1,0 +1,48 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  DIRECTOR
+  SALES
+  WAREHOUSE
+  TECHNICIAN
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  SURVEY_SCHEDULED
+  SURVEY_COMPLETED
+  QUOTE_SENT
+  WON
+  LOST
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  role      Role     @default(SALES)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CustomerLead {
+  id              String     @id @default(uuid())
+  customerName    String
+  phone           String
+  address         String
+  systemCapacity  String     // e.g. "3kW"
+  systemType      String     // "ON_GRID" or "OFF_GRID"
+  status          LeadStatus @default(NEW)
+  shadowFreeSpace Float?
+  monthlyBill     Float?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+}
