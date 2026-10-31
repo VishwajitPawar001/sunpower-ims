@@ -1,18 +1,18 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { 
-  Users, 
-  Compass, 
-  Warehouse, 
-  Wrench, 
-  LineChart, 
-  SunMedium, 
-  ShieldCheck, 
+import React from "react";
+import {
+  Users,
+  Compass,
+  Warehouse,
+  Wrench,
+  LineChart,
+  SunMedium,
+  ShieldCheck,
   ChevronRight,
-  type LucideIcon
-} from 'lucide-react';
-import { UserRole } from '@/types/solar';
+  type LucideIcon,
+} from "lucide-react";
+import { UserRole } from "@/types/solar";
 
 interface SidebarProps {
   currentRole: UserRole;
@@ -30,11 +30,41 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: 'sales-leads', label: 'Sales CRM & Leads', role: 'SALES', icon: Users, description: 'Pipeline & Quotes' },
-  { id: 'surveyor-form', label: 'Field Site Survey', role: 'SURVEYOR', icon: Compass, description: 'Roof Azimuth & Viability' },
-  { id: 'warehouse-dispatch', label: 'Hardware Dispatch', role: 'WAREHOUSE', icon: Warehouse, description: 'Serial Number Scanner' },
-  { id: 'technician-signoff', label: 'Field Ops Sign-Off', role: 'TECHNICIAN', icon: Wrench, description: 'Electrical Test & Glass Sign' },
-  { id: 'director-margins', label: 'Executive Margins', role: 'DIRECTOR', icon: LineChart, description: 'Profit & Warranty Health' },
+  {
+    id: "sales-leads",
+    label: "Sales CRM & Leads",
+    role: "SALES",
+    icon: Users,
+    description: "Pipeline & Quotes",
+  },
+  {
+    id: "surveyor-form",
+    label: "Field Site Survey",
+    role: "SURVEYOR",
+    icon: Compass,
+    description: "Roof Azimuth & Viability",
+  },
+  {
+    id: "warehouse-dispatch",
+    label: "Hardware Dispatch",
+    role: "WAREHOUSE",
+    icon: Warehouse,
+    description: "Serial Number Scanner",
+  },
+  {
+    id: "technician-signoff",
+    label: "Field Ops Sign-Off",
+    role: "TECHNICIAN",
+    icon: Wrench,
+    description: "Electrical Test & Glass Sign",
+  },
+  {
+    id: "director-margins",
+    label: "Executive Margins",
+    role: "DIRECTOR",
+    icon: LineChart,
+    description: "Profit & Warranty Health",
+  },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -52,8 +82,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <SunMedium className="w-6 h-6 text-slate-100" />
           </div>
           <div>
-            <h1 className="font-semibold text-base text-white tracking-tight">SunPower Core</h1>
-            <p className="text-xs text-enterprise-smoke font-medium">Enterprise EPC Suite</p>
+            <h1 className="font-semibold text-base text-white tracking-tight">
+              SunPower Core
+            </h1>
+            <p className="text-xs text-enterprise-smoke font-medium">
+              Enterprise EPC Suite
+            </p>
           </div>
         </div>
         <ShieldCheck className="w-5 h-5 text-enterprise-forest" />
@@ -65,6 +99,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           Switch Operator Role
         </label>
         <select
+          suppressHydrationWarning
           value={currentRole}
           onChange={(e) => {
             const role = e.target.value as UserRole;
@@ -95,18 +130,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
           return (
             <button
               key={item.id}
+              suppressHydrationWarning
               onClick={() => {
                 onRoleSelect(item.role);
                 onViewChange(item.id);
               }}
               className={`w-full flex items-center justify-between px-3.5 py-3 rounded text-left transition-colors ${
                 isActive
-                  ? 'bg-enterprise-blue text-white shadow-sm font-medium'
-                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                  ? "bg-enterprise-blue text-white shadow-sm font-medium"
+                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
               }`}
             >
               <div className="flex items-center gap-3">
-                <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-enterprise-smoke'}`} />
+                <Icon
+                  className={`w-5 h-5 ${isActive ? "text-white" : "text-enterprise-smoke"}`}
+                />
                 <div>
                   <div className="text-sm leading-tight flex items-center gap-2">
                     {item.label}
@@ -119,7 +157,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </div>
                 </div>
               </div>
-              <ChevronRight className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-600'}`} />
+              <ChevronRight
+                className={`w-4 h-4 ${isActive ? "text-white" : "text-slate-600"}`}
+              />
             </button>
           );
         })}
@@ -132,8 +172,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {currentRole.substring(0, 2)}
           </div>
           <div className="overflow-hidden">
-            <p className="text-sm font-medium text-white truncate">Authorized Station</p>
-            <p className="text-xs text-enterprise-smoke truncate">Node: worker-edge-01</p>
+            <p className="text-sm font-medium text-white truncate">
+              Authorized Station
+            </p>
+            <p className="text-xs text-enterprise-smoke truncate">
+              Node: worker-edge-01
+            </p>
           </div>
         </div>
       </div>
