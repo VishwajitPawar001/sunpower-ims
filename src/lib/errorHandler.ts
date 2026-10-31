@@ -8,6 +8,7 @@ export type ApiErrorCode =
   | 'NOT_FOUND'
   | 'INVALID_STATE_TRANSITION'
   | 'TRANSACTION_CONFLICT'
+  | 'INSUFFICIENT_STOCK'
   | 'INTERNAL_SERVER_ERROR';
 
 export class ApiError extends Error {
