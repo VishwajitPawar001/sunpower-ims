@@ -1,194 +1,146 @@
-
 import { NextRequest } from "next/server";
-import { addMonths } from "date-fns";
-import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { dispatchScanSchema } from "@/lib/validations";
-import {
-  handleApiError,
-  apiSuccess,
-  ApiError,
-} from "@/lib/errorHandler";
 import { requireRole } from "@/lib/auth";
+import { handleApiError, apiSuccess, ApiError } from "@/lib/errorHandler";
+import { ProjectStatus, SerialStatus, UserRole } from "@prisma/client";
 
+// GET /api/dispatch - List projects ready for dispatch and available stock serials
+export async function GET(req: NextRequest) {
+  try {
+    requireRole(req, [UserRole.WAREHOUSE, UserRole.ADMIN, UserRole.DIRECTOR]);
+
+    const pendingProjects = await prisma.project.findMany({
+      where: {
+        status: {
+          in: [ProjectStatus.QUOTE_ACCEPTED, ProjectStatus.DISPATCH_PENDING, ProjectStatus.DISPATCHED],
+        },
+      },
+      include: {
+        customer: true,
+        packageTemplate: true,
+        dispatchedSerials: {
+          include: { stockItem: true },
+        },
+      },
+      orderBy: { updatedAt: "desc" },
+    });
+
+    const availableSerials = await prisma.serialRegistry.findMany({
+      where: {
+        status: SerialStatus.IN_STOCK,
+        isDispatched: false,
+      },
+      include: { stockItem: true },
+      take: 100,
+    });
+
+    return apiSuccess({
+      pendingProjects,
+      availableSerials,
+    });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}
+
+// POST /api/dispatch - Verify 70% gate, scan barcodes, bind to project and mark DISPATCHED
 export async function POST(req: NextRequest) {
   try {
-    requireRole(req, ["ADMIN", "WAREHOUSE"]);
+    requireRole(req, [UserRole.WAREHOUSE, UserRole.ADMIN, UserRole.DIRECTOR]);
 
     const body = await req.json();
-    const valid = dispatchScanSchema.parse(body);
+    const { projectId, serialNumbers } = body;
 
-    // Reject duplicate serial numbers in the same request.
-    const uniqueSerials = new Set(valid.scannedSerialNumbers);
+    if (!projectId || !Array.isArray(serialNumbers) || serialNumbers.length === 0) {
+      throw new ApiError(400, "BAD_REQUEST", "projectId and an array of scanned serialNumbers are required.");
+    }
 
-    if (uniqueSerials.size !== valid.scannedSerialNumbers.length) {
+    const project = await prisma.project.findUnique({
+      where: { id: Number(projectId) },
+      include: { customer: true, packageTemplate: true },
+    });
+
+    if (!project) {
+      throw new ApiError(404, "NOT_FOUND", "Project not found.");
+    }
+
+    // 1. Mandatory Milestone Gate Check: 70% payment check
+    const totalQuoted = Number(project.totalQuotedPrice);
+    const totalPaidSoFar = Number(project.bookingAdvancePaid) + Number(project.dispatchPaymentPaid);
+    const seventyPercentGate = totalQuoted * 0.7;
+
+    if (totalPaidSoFar < seventyPercentGate) {
       throw new ApiError(
         400,
-        "VALIDATION_ERROR",
-        "Duplicate serial numbers are not allowed."
+        "PAYMENT_GATE_LOCKED",
+        `Cannot dispatch kit: Minimum 70% payment required (₹${seventyPercentGate.toLocaleString()}). Total received so far: ₹${totalPaidSoFar.toLocaleString()}.`
       );
     }
 
-    const result = await prisma.$transaction(
-      async (tx) => {
-        // 1. Verify project status.
-        const project = await tx.project.findUnique({
-          where: { id: valid.projectId },
+    // 2. Validate and Bind Barcode Serials inside an atomic transaction
+    const dispatchResult = await prisma.$transaction(async (tx) => {
+      const boundSerials = [];
+
+      for (const rawSerial of serialNumbers) {
+        const serialNumber = String(rawSerial).trim();
+
+        const item = await tx.serialRegistry.findUnique({
+          where: { serialNumber },
+          include: { stockItem: true },
         });
 
-        if (!project) {
-          throw new ApiError(404, "NOT_FOUND", "Project not found.");
+        if (!item) {
+          throw new ApiError(404, "NOT_FOUND", `Hardware barcode '${serialNumber}' not registered in inventory.`);
         }
 
-        if (project.status !== "ORDER_CONFIRMED") {
+        if (item.isDispatched || item.status !== SerialStatus.IN_STOCK) {
           throw new ApiError(
             400,
-            "INVALID_STATE_TRANSITION",
-            `Cannot dispatch. Project status is '${project.status}', expected 'ORDER_CONFIRMED'.`
+            "SERIAL_ALREADY_DISPATCHED",
+            `Barcode '${serialNumber}' is already dispatched or assigned to project ID ${item.projectId}.`
           );
         }
 
-        // 2. Find all requested serial numbers.
-        const serialRecords = await tx.serialRegistry.findMany({
-          where: {
-            serialNumber: { in: valid.scannedSerialNumbers },
-          },
-          include: {
-            stockItem: true,
-          },
-        });
-
-        if (serialRecords.length !== valid.scannedSerialNumbers.length) {
-          const found = new Set(
-            serialRecords.map((record) => record.serialNumber)
-          );
-
-          const missing = valid.scannedSerialNumbers.filter(
-            (serial) => !found.has(serial)
-          );
-
-          throw new ApiError(
-            400,
-            "TRANSACTION_CONFLICT",
-            `Unknown serial numbers: ${missing.join(", ")}`
-          );
-        }
-
-        // 3. Ensure every serial is available.
-        for (const record of serialRecords) {
-          if (record.isDispatched || record.projectId !== null) {
-            throw new ApiError(
-              400,
-              "TRANSACTION_CONFLICT",
-              `Serial '${record.serialNumber}' is already dispatched or assigned.`
-            );
-          }
-        }
-
-        // 4. Group serials by stock item.
-        const quantities = new Map<string, number>();
-
-        for (const record of serialRecords) {
-          quantities.set(
-            record.stockItemId,
-            (quantities.get(record.stockItemId) ?? 0) + 1
-          );
-        }
-
-        // 5. Decrement stock only when sufficient quantity exists.
-        for (const [stockItemId, quantity] of quantities) {
-          const stockUpdate = await tx.stockItem.updateMany({
-            where: {
-              id: stockItemId,
-              quantityOnHand: { gte: quantity },
-            },
-            data: {
-              quantityOnHand: { decrement: quantity },
-            },
-          });
-
-          if (stockUpdate.count !== 1) {
-            throw new ApiError(
-              409,
-              "INSUFFICIENT_STOCK",
-              `Insufficient stock for item ${stockItemId}.`
-            );
-          }
-        }
-
-        // 6. Assign serials only if they are still available.
-        const now = new Date();
-
-        const serialUpdate = await tx.serialRegistry.updateMany({
-          where: {
-            id: { in: serialRecords.map((record) => record.id) },
-            isDispatched: false,
-            projectId: null,
-          },
+        // Bind serial to project and update status
+        const updatedSerial = await tx.serialRegistry.update({
+          where: { serialNumber },
           data: {
             projectId: project.id,
+            status: SerialStatus.DISPATCHED,
             isDispatched: true,
-            dispatchedAt: now,
-            warrantyStartDate: now,
-            status: "ACTIVE",
+            dispatchedAt: new Date(),
           },
+          include: { stockItem: true },
         });
 
-        if (serialUpdate.count !== serialRecords.length) {
-          throw new ApiError(
-            409,
-            "TRANSACTION_CONFLICT",
-            "One or more serial numbers were dispatched by another request."
-          );
-        }
-
-        // 7. Calculate warranty end dates.
-        for (const record of serialRecords) {
-          await tx.serialRegistry.update({
-            where: { id: record.id },
-            data: {
-              warrantyEndDate: addMonths(
-                now,
-                record.stockItem.warrantyMonths
-              ),
-            },
-          });
-        }
-
-        // 8. Change project status only if it is still confirmed.
-        const projectUpdate = await tx.project.updateMany({
-          where: {
-            id: project.id,
-            status: "ORDER_CONFIRMED",
-          },
-          data: {
-            status: "DISPATCHED",
-          },
+        // Deduct quantityOnHand from stock catalog
+        await tx.stockItem.update({
+          where: { id: item.stockItemId },
+          data: { quantityOnHand: { decrement: 1 } },
         });
 
-        if (projectUpdate.count !== 1) {
-          throw new ApiError(
-            409,
-            "TRANSACTION_CONFLICT",
-            "Project status changed during dispatch."
-          );
-        }
-
-        return {
-          projectId: project.id,
-          status: "DISPATCHED",
-          dispatchedCount: serialRecords.length,
-          dispatchedSerialNumbers: serialRecords.map(
-            (record) => record.serialNumber
-          ),
-        };
-      },
-      {
-        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        boundSerials.push(updatedSerial);
       }
-    );
 
-    return apiSuccess(result);
+      // Advance project status to DISPATCHED
+      const updatedProject = await tx.project.update({
+        where: { id: project.id },
+        data: { status: ProjectStatus.DISPATCHED },
+        include: {
+          customer: true,
+          packageTemplate: true,
+          dispatchedSerials: { include: { stockItem: true } },
+        },
+      });
+
+      return { updatedProject, boundSerials };
+    });
+
+    return apiSuccess({
+      message: `Kit successfully dispatched for project ${project.projectCode}.`,
+      project: dispatchResult.updatedProject,
+      dispatchedSerials: dispatchResult.boundSerials,
+    });
   } catch (error) {
     return handleApiError(error);
   }
