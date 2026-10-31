@@ -1,4 +1,3 @@
-
 import { PrismaClient, UserRole, ComponentType } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
@@ -165,6 +164,45 @@ async function main() {
   }
 
   console.log("Created or verified sample stock items.");
+
+  // --------------------------------------------------
+  // 4. CREATE SAMPLE SERIAL REGISTRY INVENTORY
+  // --------------------------------------------------
+
+  const inverterItem = await prisma.stockItem.findUnique({
+    where: { sku: "SOLAR-INV-3KW" },
+  });
+
+  const panelItem = await prisma.stockItem.findUnique({
+    where: { sku: "SOLAR-PANEL-550W" },
+  });
+
+  if (inverterItem && panelItem) {
+    const serialsToSeed = [
+      { serialNumber: "INVERTER-SN-1001", stockItemId: inverterItem.id },
+      { serialNumber: "INVERTER-SN-1002", stockItemId: inverterItem.id },
+      { serialNumber: "INVERTER-SN-1003", stockItemId: inverterItem.id },
+      { serialNumber: "PANEL-SN-5001", stockItemId: panelItem.id },
+      { serialNumber: "PANEL-SN-5002", stockItemId: panelItem.id },
+      { serialNumber: "PANEL-SN-5003", stockItemId: panelItem.id },
+      { serialNumber: "PANEL-SN-5004", stockItemId: panelItem.id },
+    ];
+
+    for (const item of serialsToSeed) {
+      await prisma.serialRegistry.upsert({
+        where: { serialNumber: item.serialNumber },
+        update: {},
+        create: {
+          serialNumber: item.serialNumber,
+          stockItemId: item.stockItemId,
+          isDispatched: false,
+          warrantyEndDate: new Date("2036-12-31"),
+        },
+      });
+    }
+
+    console.log("Created or verified sample serial registry items.");
+  }
 
   console.log("SunPower database seeding completed successfully!");
 }
