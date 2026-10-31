@@ -47,3 +47,17 @@ export const loginSchema = z
     password: z.string().min(6),
   })
   .strict();
+
+  export const quoteGenerateSchema = z
+  .object({
+    projectId: z.string().uuid(),
+    marginMarkupPercent: z.number().min(0).max(100).default(15), // standard margin
+  })
+  .strict();
+
+export const orderConfirmSchema = z
+  .object({
+    projectId: z.string().uuid(),
+    agreedPrice: z.number().positive(),
+  })
+  .strict();
