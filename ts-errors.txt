@@ -1,0 +1,62 @@
+﻿src/app/dashboard/page.tsx(56,11): error TS2367: This comparison appears to be unintentional because the types 'UserRole' and '"TECHNICIAN"' have no overlap.
+src/app/dashboard/page.tsx(89,24): error TS2345: Argument of type '"TECHNICIAN"' is not assignable to parameter of type 'SetStateAction<UserRole>'.
+src/app/login/page.tsx(42,24): error TS2339: Property 'user' does not exist on type 'User'.
+src/app/login/page.tsx(46,55): error TS2339: Property 'token' does not exist on type 'User'.
+src/components/director/MarginDashboard.tsx(12,10): error TS2305: Module '"@/lib/api"' has no exported member 'fetchAnalyticsMarginsApi'.
+src/components/director/MarginDashboard.tsx(12,36): error TS2305: Module '"@/lib/api"' has no exported member 'AnalyticsMarginsData'.
+src/components/director/MarginDashboard.tsx(68,14): error TS7006: Parameter 'liveData' implicitly has an 'any' type.
+src/components/director/MarginDashboard.tsx(86,89): error TS18046: 'a' is of type 'unknown'.
+src/components/director/MarginDashboard.tsx(86,93): error TS18046: 'b' is of type 'unknown'.
+src/components/director/MarginDashboard.tsx(183,13): error TS2322: Type 'unknown' is not assignable to type 'ReactNode'.
+src/components/director/MarginDashboard.tsx(200,87): error TS2322: Type 'unknown' is not assignable to type 'ReactNode'.
+src/components/layout/Sidebar.tsx(68,20): error TS2322: Type '"TECHNICIAN"' is not assignable to type 'UserRole'.
+src/components/sales/LeadsTable.tsx(6,10): error TS2305: Module '"@/lib/api"' has no exported member 'getLeadsApi'.
+src/components/sales/LeadsTable.tsx(6,23): error TS2724: '"@/lib/api"' has no exported member named 'createLeadApi'. Did you mean 'createLead'?
+src/components/sales/LeadsTable.tsx(10,5): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/sales/LeadsTable.tsx(22,5): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/sales/LeadsTable.tsx(34,5): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/sales/LeadsTable.tsx(46,5): error TS2322: Type 'string' is not assignable to type 'number'.
+src/components/sales/LeadsTable.tsx(85,14): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/components/sales/LeadsTable.tsx(131,12): error TS2678: Type '"QUOTE_ISSUED"' is not comparable to type 'ProjectStatus'.
+src/components/sales/LeadsTable.tsx(135,12): error TS2678: Type '"REJECTED"' is not comparable to type 'ProjectStatus'.
+src/components/sales/LeadsTable.tsx(145,7): error TS18048: 'lead.customerName' is possibly 'undefined'.
+src/components/sales/LeadsTable.tsx(238,29): error TS2339: Property 'address' does not exist on type 'ProjectLead'.
+src/components/sales/LeadsTable.tsx(247,30): error TS2339: Property 'agreedPrice' does not exist on type 'ProjectLead'.
+src/components/sales/LeadsTable.tsx(247,49): error TS2339: Property 'agreedPrice' does not exist on type 'ProjectLead'.
+src/components/sales/QuoteGenerator.tsx(15,10): error TS2724: '"@/lib/api"' has no exported member named 'generateQuoteApi'. Did you mean 'generateQuote'?
+src/components/support/TicketDesk.tsx(5,10): error TS2305: Module '"@/lib/api"' has no exported member 'getTicketsApi'.
+src/components/support/TicketDesk.tsx(5,25): error TS2305: Module '"@/lib/api"' has no exported member 'updateTicketStatusApi'.
+src/components/support/TicketDesk.tsx(5,48): error TS2459: Module '"@/lib/api"' declares 'SupportTicket' locally, but it is not exported.
+src/components/support/TicketDesk.tsx(44,14): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/components/surveyor/SurveyorForm.tsx(5,10): error TS2724: '"@/lib/api"' has no exported member named 'submitSurveyApi'. Did you mean 'submitSurvey'?
+src/components/surveyor/SurveyorForm.tsx(5,27): error TS2724: '"@/lib/api"' has no exported member named 'SiteSurveyPayload'. Did you mean 'SubmitSurveyPayload'?
+src/components/technician/SignoffCanvas.tsx(14,10): error TS2724: '"@/lib/api"' has no exported member named 'submitCommissioningSignApi'. Did you mean 'submitCommissioning'?
+src/components/technician/SignoffCanvas.tsx(203,42): error TS2339: Property 'code' does not exist on type 'ApiError'.
+src/components/warehouse/DispatchScanner.tsx(15,10): error TS2305: Module '"@/lib/api"' has no exported member 'scanDispatchBarcodeApi'.
+src/components/warehouse/DispatchScanner.tsx(19,5): error TS2353: Object literal may only specify known properties, and 'sku' does not exist in type 'SerialVerificationItem'.
+src/components/warehouse/DispatchScanner.tsx(26,5): error TS2353: Object literal may only specify known properties, and 'sku' does not exist in type 'SerialVerificationItem'.
+src/components/warehouse/DispatchScanner.tsx(33,5): error TS2353: Object literal may only specify known properties, and 'sku' does not exist in type 'SerialVerificationItem'.
+src/components/warehouse/DispatchScanner.tsx(57,64): error TS2339: Property 'requiredQty' does not exist on type 'SerialVerificationItem'.
+src/components/warehouse/DispatchScanner.tsx(59,31): error TS2339: Property 'scannedSerials' does not exist on type 'SerialVerificationItem'.
+src/components/warehouse/DispatchScanner.tsx(71,12): error TS2339: Property 'scannedSerials' does not exist on type 'SerialVerificationItem'.
+src/components/warehouse/DispatchScanner.tsx(92,49): error TS2339: Property 'category' does not exist on type 'SerialVerificationItem'.
+src/components/warehouse/DispatchScanner.tsx(94,49): error TS2339: Property 'category' does not exist on type 'SerialVerificationItem'.
+src/components/warehouse/DispatchScanner.tsx(96,49): error TS2339: Property 'category' does not exist on type 'SerialVerificationItem'.
+src/components/warehouse/DispatchScanner.tsx(103,53): error TS2339: Property 'scannedSerials' does not exist on type 'SerialVerificationItem'.
+src/components/warehouse/DispatchScanner.tsx(115,17): error TS2339: Property 'status' does not exist on type 'ApiError'.
+src/components/warehouse/DispatchScanner.tsx(119,21): error TS2339: Property 'code' does not exist on type 'ApiError'.
+src/components/warehouse/DispatchScanner.tsx(125,51): error TS2339: Property 'category' does not exist on type 'SerialVerificationItem'.
+src/components/warehouse/DispatchScanner.tsx(127,51): error TS2339: Property 'category' does not exist on type 'SerialVerificationItem'.
+src/components/warehouse/DispatchScanner.tsx(128,54): error TS2339: Property 'category' does not exist on type 'SerialVerificationItem'.
+src/components/warehouse/DispatchScanner.tsx(134,55): error TS2339: Property 'scannedSerials' does not exist on type 'SerialVerificationItem'.
+src/components/warehouse/DispatchScanner.tsx(298,39): error TS2339: Property 'scannedSerials' does not exist on type 'SerialVerificationItem'.
+src/components/warehouse/DispatchScanner.tsx(298,69): error TS2339: Property 'requiredQty' does not exist on type 'SerialVerificationItem'.
+src/components/warehouse/DispatchScanner.tsx(300,33): error TS2339: Property 'sku' does not exist on type 'SerialVerificationItem'.
+src/components/warehouse/DispatchScanner.tsx(302,29): error TS2339: Property 'category' does not exist on type 'SerialVerificationItem'.
+src/components/warehouse/DispatchScanner.tsx(306,31): error TS2339: Property 'modelName' does not exist on type 'SerialVerificationItem'.
+src/components/warehouse/DispatchScanner.tsx(309,31): error TS2339: Property 'sku' does not exist on type 'SerialVerificationItem'.
+src/components/warehouse/DispatchScanner.tsx(313,29): error TS2339: Property 'scannedSerials' does not exist on type 'SerialVerificationItem'.
+src/components/warehouse/DispatchScanner.tsx(313,60): error TS2339: Property 'requiredQty' does not exist on type 'SerialVerificationItem'.
+src/components/warehouse/DispatchScanner.tsx(316,29): error TS2339: Property 'scannedSerials' does not exist on type 'SerialVerificationItem'.
+src/components/warehouse/DispatchScanner.tsx(322,33): error TS2339: Property 'scannedSerials' does not exist on type 'SerialVerificationItem'.
+src/components/warehouse/DispatchScanner.tsx(322,53): error TS7006: Parameter 's' implicitly has an 'any' type.

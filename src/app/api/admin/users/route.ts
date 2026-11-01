@@ -1,29 +1,41 @@
+
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createUserSchema } from "@/lib/validations";
-import { handleApiError, apiSuccess, ApiError } from "@/lib/errorHandler";
+import {
+  handleApiError,
+  apiSuccess,
+  ApiError,
+} from "@/lib/errorHandler";
 import { requireRole } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 
 export async function POST(req: NextRequest) {
   try {
     requireRole(req, ["ADMIN"]);
+
     const body = await req.json();
     const valid = createUserSchema.parse(body);
 
+    const normalizedEmail = valid.email.toLowerCase().trim();
+
     const existingUser = await prisma.user.findUnique({
-      where: { email: valid.email.toLowerCase().trim() },
+      where: { email: normalizedEmail },
     });
 
     if (existingUser) {
-      throw new ApiError(409, "CONFLICT", `User with email '${valid.email}' already exists.`);
+      throw new ApiError(
+        409,
+        "TRANSACTION_CONFLICT",
+        `User with email '${normalizedEmail}' already exists.`
+      );
     }
 
     const passwordHash = await bcrypt.hash(valid.password, 10);
 
     const newUser = await prisma.user.create({
       data: {
-        email: valid.email.toLowerCase().trim(),
+        email: normalizedEmail,
         fullName: valid.fullName.trim(),
         role: valid.role,
         passwordHash,
@@ -61,7 +73,12 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
-    return apiSuccess({ count: users.length, users });
+    return apiSuccess(
+      {
+        count: users.length,
+        users,
+      }
+    );
   } catch (error) {
     return handleApiError(error);
   }

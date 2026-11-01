@@ -3,6 +3,10 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+generator client {
+  provider = "prisma-client-js"
+}
+
 // ------------------------------------------------------
 // ENUMS
 // ------------------------------------------------------
@@ -22,6 +26,8 @@ enum SystemType {
   ON_GRID
   OFF_GRID
   HYBRID
+
+  @@map("system_type")
 }
 
 enum RoofType {
@@ -29,27 +35,32 @@ enum RoofType {
   METAL_SHEET
   TILED
   GROUND_MOUNT
+
+  @@map("roof_type")
 }
 
 enum ProjectStatus {
   LEAD_RECEIVED
   SURVEY_PENDING
+  SURVEY_SCHEDULED
   SURVEY_APPROVED
-  REJECTED
-  QUOTE_ISSUED
+  SURVEY_REJECTED
+  QUOTATION_ISSUED
+  QUOTE_ACCEPTED
   ORDER_CONFIRMED
+  DISPATCH_PENDING
+  MATERIAL_DISPATCHED
   DISPATCHED
+  INSTALLATION_IN_PROGRESS
+  INSTALLATION_COMPLETED
   COMMISSIONED
+  NET_METERING_PENDING
+  DISCOM_SYNCED
   COMPLETED
+  ON_HOLD
+  CANCELLED
 
   @@map("project_status")
-}
-
-enum SystemType {
-  ON_GRID
-  OFF_GRID
-
-  @@map("system_type")
 }
 
 enum ComponentCategory {
@@ -59,8 +70,9 @@ enum ComponentCategory {
   CHARGE_CONTROLLER
   STRUCTURE
   BALANCE_OF_SYSTEM
+  SAFETY_EARTHING
 
-  @@map("component_type")
+  @@map("component_category")
 }
 
 enum SerialStatus {
@@ -69,19 +81,26 @@ enum SerialStatus {
   INSTALLED
   FAILED_RMA
   RETURNED_TO_VENDOR
+
+  @@map("serial_status")
 }
 
 enum TicketStatus {
   OPEN
   INVESTIGATING
+  IN_PROGRESS
   PARTS_REPLACED
   RESOLVED
   CLOSED
+
+  @@map("ticket_status")
 }
 
 enum BillingType {
   WARRANTY_FREE
   BILLABLE
+
+  @@map("billing_type")
 }
 
 // ------------------------------------------------------
@@ -89,17 +108,23 @@ enum BillingType {
 // ------------------------------------------------------
 
 model User {
-  id           String   @id @default(uuid()) @db.Uuid
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  fullName     String   @map("full_name")
-  role         UserRole
-  isActive     Boolean  @default(true) @map("is_active")
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id             Int      @id @default(autoincrement())
+  email          String   @unique
+  passwordHash   String   @map("password_hash")
+  fullName       String   @map("full_name")
+  role           UserRole
+  employeeCode   String?  @unique @map("employee_code")
+  phone          String?
+  monthlySalary  Decimal? @map("monthly_salary") @db.Decimal(10, 2)
+  dailyLaborRate Decimal? @map("daily_labor_rate") @db.Decimal(10, 2)
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   surveys              SiteSurvey[]
   commissioningRecords CommissioningRecord[]
+  installationRecords  InstallationRecord[]
+  assignedTickets      SupportTicket[]       @relation("AssignedTickets")
 
   @@index([role])
   @@map("users")
@@ -110,61 +135,141 @@ model User {
 // ------------------------------------------------------
 
 model Customer {
-  id                  String   @id @default(uuid()) @db.Uuid
+  id                  Int      @id @default(autoincrement())
+  customerCode        String?  @unique @map("customer_code")
   fullName            String   @map("full_name")
   phone               String   @unique
   email               String?
   installationAddress String   @map("installation_address")
+  city                String?
+  state               String?
+  pincode             String?
   createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  projects Project[]
+  projects       Project[]
+  supportTickets SupportTicket[]
 
   @@map("customers")
 }
 
 // ------------------------------------------------------
-// 3. PROJECTS
+// 3. PACKAGE TEMPLATES
+// ------------------------------------------------------
+
+model PackageTemplate {
+  id                Int        @id @default(autoincrement())
+  packageCode       String     @unique @map("package_code")
+  name              String
+  capacityKw        Decimal    @map("capacity_kw") @db.Decimal(6, 2)
+  systemType        SystemType @map("system_type")
+  panelCount        Int        @default(0) @map("panel_count")
+  inverterRatingKw  Decimal    @map("inverter_rating_kw") @db.Decimal(6, 2)
+  batteryCapacityAh Decimal?   @map("battery_capacity_ah") @db.Decimal(10, 2)
+  baseHardwareCost  Decimal    @map("base_hardware_cost") @db.Decimal(12, 2)
+  baseLaborCost     Decimal    @map("base_labor_cost") @db.Decimal(12, 2)
+  defaultPrice      Decimal    @map("default_price") @db.Decimal(12, 2)
+  isActive          Boolean    @default(true) @map("is_active")
+  createdAt         DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  projects Project[]
+
+  @@map("package_templates")
+}
+
+// ------------------------------------------------------
+// 4. PROJECTS
 // ------------------------------------------------------
 
 model Project {
-  id          String        @id @default(uuid()) @db.Uuid
+  id          Int           @id @default(autoincrement())
   projectCode String        @unique @map("project_code")
-  customerId  String        @map("customer_id") @db.Uuid
+  customerId  Int           @map("customer_id")
   status      ProjectStatus @default(LEAD_RECEIVED)
-  capacityKw  Decimal       @map("capacity_kw") @db.Decimal(4, 2)
-  systemType  SystemType    @map("system_type")
-  agreedPrice Decimal?      @map("agreed_price") @db.Decimal(12, 2)
-  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Original project fields
+  capacityKw  Decimal?   @map("capacity_kw") @db.Decimal(4, 2)
+  systemType  SystemType @map("system_type")
+  agreedPrice Decimal?   @map("agreed_price") @db.Decimal(12, 2)
+
+  // Package and system information
+  packageTemplateId Int?     @map("package_template_id")
+  systemCapacityKw  Decimal? @map("system_capacity_kw") @db.Decimal(6, 2)
+
+  // Customer electricity information
+  consumerAccountNumber String?  @map("consumer_account_number")
+  sanctionedLoadKw      Decimal? @map("sanctioned_load_kw") @db.Decimal(8, 2)
+  monthlyPowerBill      Decimal? @map("monthly_power_bill") @db.Decimal(12, 2)
+
+  // Quotation and payment milestones
+  totalQuotedPrice    Decimal @default(0) @map("total_quoted_price") @db.Decimal(12, 2)
+  bookingAdvancePaid  Decimal @default(0) @map("booking_advance_paid") @db.Decimal(12, 2)
+  dispatchPaymentPaid Decimal @default(0) @map("dispatch_payment_paid") @db.Decimal(12, 2)
+  finalBalancePaid    Decimal @default(0) @map("final_balance_paid") @db.Decimal(12, 2)
+
+  // Execution costs
+  freightCost       Decimal @default(0) @map("freight_cost") @db.Decimal(12, 2)
+  civilMaterialCost Decimal @default(0) @map("civil_material_cost") @db.Decimal(12, 2)
+  directLaborCost   Decimal @default(0) @map("direct_labor_cost") @db.Decimal(12, 2)
+
+  // Grid synchronization
+  discomApplicationNumber  String?   @map("discom_application_number")
+  bidirectionalMeterSerial String?   @map("bidirectional_meter_serial")
+  isGridSynchronized       Boolean   @default(false) @map("is_grid_synchronized")
+  gridSyncDate             DateTime? @map("grid_sync_date") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   customer            Customer             @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  packageTemplate     PackageTemplate?     @relation(fields: [packageTemplateId], references: [id], onDelete: SetNull)
   siteSurvey          SiteSurvey?
-  serialRegistry      SerialRegistry[]
+  dispatchedSerials   SerialRegistry[]     @relation("DispatchedSerials")
   commissioningRecord CommissioningRecord?
+  installationRecord  InstallationRecord?
   supportTickets      SupportTicket[]
 
   @@index([customerId])
   @@index([status])
+  @@index([packageTemplateId])
   @@map("projects")
 }
 
 // ------------------------------------------------------
-// 4. SITE SURVEYS
+// 5. SITE SURVEYS
 // ------------------------------------------------------
 
 model SiteSurvey {
-  id                String   @id @default(uuid()) @db.Uuid
-  projectId         String   @unique @map("project_id") @db.Uuid
-  surveyorId        String   @map("surveyor_id") @db.Uuid
-  roofUsableAreaSqm Decimal  @map("roof_usable_area_sqm") @db.Decimal(8, 2)
-  tiltDegrees       Decimal  @map("tilt_degrees") @db.Decimal(4, 1)
-  azimuthDegrees    Decimal  @map("azimuth_degrees") @db.Decimal(4, 1)
-  cableRunMeters    Decimal  @map("cable_run_meters") @db.Decimal(6, 2)
-  sanctionedLoadKw  Decimal  @map("sanctioned_load_kw") @db.Decimal(6, 2)
+  id         Int @id @default(autoincrement())
+  projectId  Int @unique @map("project_id")
+  surveyorId Int @map("surveyor_id")
+
+  // Original survey fields
+  roofType          RoofType @default(FLAT_RCC) @map("roof_type")
+  roofUsableAreaSqm Decimal? @map("roof_usable_area_sqm") @db.Decimal(8, 2)
+  tiltDegrees       Decimal? @map("tilt_degrees") @db.Decimal(4, 1)
+  azimuthDegrees    Decimal? @map("azimuth_degrees") @db.Decimal(4, 1)
+  cableRunMeters    Decimal? @map("cable_run_meters") @db.Decimal(6, 2)
+  sanctionedLoadKw  Decimal? @map("sanctioned_load_kw") @db.Decimal(6, 2)
   isShadowFree      Boolean  @default(true) @map("is_shadow_free")
-  isViable          Boolean  @map("is_viable")
+  isViable          Boolean? @map("is_viable")
   notes             String?
   surveyedAt        DateTime @default(now()) @map("surveyed_at") @db.Timestamptz(6)
+
+  // Expanded survey fields
+  usableAreaSqFt  Decimal? @map("usable_area_sq_ft") @db.Decimal(10, 2)
+  isSouthFacing   Boolean  @default(true) @map("is_south_facing")
+  tiltAngleDeg    Decimal? @map("tilt_angle_deg") @db.Decimal(5, 2)
+  hasShadingIssue Boolean  @default(false) @map("has_shading_issue")
+  parapetHeightFt Decimal? @map("parapet_height_ft") @db.Decimal(6, 2)
+  dcCableRunMtrs  Decimal? @map("dc_cable_run_mtrs") @db.Decimal(8, 2)
+  acCableRunMtrs  Decimal? @map("ac_cable_run_mtrs") @db.Decimal(8, 2)
+  earthPitViable  Boolean  @default(true) @map("earth_pit_viable")
+  isApproved      Boolean  @default(false) @map("is_approved")
+  rejectionReason String?  @map("rejection_reason")
+  surveyNotes     String?  @map("survey_notes")
+  surveyDate      DateTime @default(now()) @map("survey_date") @db.Timestamptz(6)
 
   project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   surveyor User    @relation(fields: [surveyorId], references: [id], onDelete: Restrict)
@@ -174,17 +279,17 @@ model SiteSurvey {
 }
 
 // ------------------------------------------------------
-// 5. STOCK ITEMS
+// 6. STOCK ITEMS
 // ------------------------------------------------------
 
 model StockItem {
-  id             String        @id @default(uuid()) @db.Uuid
-  sku            String        @unique
-  modelName      String        @map("model_name")
-  category       ComponentType
-  unitCost       Decimal       @map("unit_cost") @db.Decimal(10, 2)
-  quantityOnHand Int           @default(0) @map("quantity_on_hand")
-  warrantyMonths Int           @map("warranty_months")
+  id             Int               @id @default(autoincrement())
+  sku            String            @unique
+  modelName      String            @map("model_name")
+  category       ComponentCategory
+  unitCost       Decimal           @map("unit_cost") @db.Decimal(10, 2)
+  quantityOnHand Int               @default(0) @map("quantity_on_hand")
+  warrantyMonths Int               @map("warranty_months")
 
   serialRegistry SerialRegistry[]
 
@@ -193,22 +298,23 @@ model StockItem {
 }
 
 // ------------------------------------------------------
-// 6. SERIAL REGISTRY
+// 7. SERIAL REGISTRY
 // ------------------------------------------------------
 
 model SerialRegistry {
-  id                String         @id @default(uuid()) @db.Uuid
-  serialNumber      String         @unique @map("serial_number")
-  stockItemId       String         @map("stock_item_id") @db.Uuid
-  projectId         String?        @map("project_id") @db.Uuid
-  isDispatched      Boolean        @default(false) @map("is_dispatched")
-  dispatchedAt      DateTime?      @map("dispatched_at") @db.Timestamptz(6)
-  warrantyStartDate DateTime?      @map("warranty_start_date") @db.Date
-  warrantyEndDate   DateTime?      @map("warranty_end_date") @db.Date
-  status            WarrantyStatus @default(ACTIVE)
+  id                Int          @id @default(autoincrement())
+  serialNumber      String       @unique @map("serial_number")
+  stockItemId       Int          @map("stock_item_id")
+  projectId         Int?         @map("project_id")
+  isDispatched      Boolean      @default(false) @map("is_dispatched")
+  dispatchedAt      DateTime?    @map("dispatched_at") @db.Timestamptz(6)
+  warrantyStartDate DateTime?    @map("warranty_start_date") @db.Date
+  warrantyEndDate   DateTime?    @map("warranty_end_date") @db.Date
+  status            SerialStatus @default(IN_STOCK)
 
-  stockItem      StockItem       @relation(fields: [stockItemId], references: [id], onDelete: Restrict)
-  project        Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  stockItem StockItem @relation(fields: [stockItemId], references: [id], onDelete: Restrict)
+  project   Project?  @relation("DispatchedSerials", fields: [projectId], references: [id], onDelete: SetNull)
+
   supportTickets SupportTicket[]
 
   @@index([stockItemId])
@@ -218,13 +324,13 @@ model SerialRegistry {
 }
 
 // ------------------------------------------------------
-// 7. COMMISSIONING RECORDS
+// 8. COMMISSIONING RECORDS (LEGACY)
 // ------------------------------------------------------
 
 model CommissioningRecord {
-  id                     String   @id @default(uuid()) @db.Uuid
-  projectId              String   @unique @map("project_id") @db.Uuid
-  leadTechnicianId       String   @map("lead_technician_id") @db.Uuid
+  id                     Int      @id @default(autoincrement())
+  projectId              Int      @unique @map("project_id")
+  leadTechnicianId       Int      @map("lead_technician_id")
   vocVoltsMeasured       Decimal  @map("voc_volts_measured") @db.Decimal(6, 2)
   iscAmpsMeasured        Decimal  @map("isc_amps_measured") @db.Decimal(6, 2)
   earthingResistanceOhms Decimal  @map("earthing_resistance_ohms") @db.Decimal(5, 2)
@@ -240,27 +346,76 @@ model CommissioningRecord {
 }
 
 // ------------------------------------------------------
-// 8. SUPPORT TICKETS
+// 9. INSTALLATION RECORDS
+// ------------------------------------------------------
+
+model InstallationRecord {
+  id               Int @id @default(autoincrement())
+  projectId        Int @unique @map("project_id")
+  leadTechnicianId Int @map("lead_technician_id")
+
+  transitReceivedAt   DateTime? @map("transit_received_at") @db.Timestamptz(6)
+  civilPadsCompleted  Boolean   @default(false) @map("civil_pads_completed")
+  groutCuringVerified Boolean   @default(false) @map("grout_curing_verified")
+  structureTorqued    Boolean   @default(false) @map("structure_torqued")
+  dcConduitCompleted  Boolean   @default(false) @map("dc_conduit_completed")
+  earthPitsCompleted  Boolean   @default(false) @map("earth_pits_completed")
+
+  vocVolts            Decimal @map("voc_volts") @db.Decimal(8, 2)
+  iscAmperes          Decimal @map("isc_amperes") @db.Decimal(8, 2)
+  earthResistanceOhms Decimal @map("earth_resistance_ohms") @db.Decimal(8, 2)
+
+  roofPhotoUrl         String?  @map("roof_photo_url")
+  customerSignatureSvg String   @map("customer_signature_svg")
+  installedAt          DateTime @default(now()) @map("installed_at") @db.Timestamptz(6)
+
+  project        Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  leadTechnician User    @relation(fields: [leadTechnicianId], references: [id], onDelete: Restrict)
+
+  @@index([leadTechnicianId])
+  @@map("installation_records")
+}
+
+// ------------------------------------------------------
+// 10. SUPPORT TICKETS
 // ------------------------------------------------------
 
 model SupportTicket {
-  id                     String       @id @default(uuid()) @db.Uuid
-  ticketNumber           String       @unique @map("ticket_number")
-  projectId              String       @map("project_id") @db.Uuid
-  serialRegistryId       String?      @map("serial_registry_id") @db.Uuid
-  reportedFaultCode      String       @map("reported_fault_code")
-  description            String
-  status                 TicketStatus @default(OPEN)
-  isCoveredUnderWarranty Boolean      @map("is_covered_under_warranty")
-  billableAmount         Decimal      @default(0) @map("billable_amount") @db.Decimal(10, 2)
-  createdAt              DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt              DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id           Int     @id @default(autoincrement())
+  ticketNumber String? @unique @map("ticket_number")
+  ticketCode   String  @unique @map("ticket_code")
+
+  projectId        Int  @map("project_id")
+  customerId       Int? @map("customer_id")
+  serialRegistryId Int? @map("serial_registry_id")
+  assignedToId     Int? @map("assigned_to_id")
+
+  // Original ticket fields
+  reportedFaultCode      String? @map("reported_fault_code")
+  description            String?
+  isCoveredUnderWarranty Boolean @default(false) @map("is_covered_under_warranty")
+  billableAmount         Decimal @default(0) @map("billable_amount") @db.Decimal(10, 2)
+
+  // Expanded ticket fields
+  status             TicketStatus @default(OPEN)
+  billingType        BillingType  @default(WARRANTY_FREE) @map("billing_type")
+  reportedIssue      String       @map("reported_issue")
+  faultySerialNumber String?      @map("faulty_serial_number")
+  replacedWithSerial String?      @map("replaced_with_serial")
+  resolutionNotes    String?      @map("resolution_notes")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   project        Project         @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  customer       Customer?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
   serialRegistry SerialRegistry? @relation(fields: [serialRegistryId], references: [id], onDelete: SetNull)
+  assignedTo     User?           @relation("AssignedTickets", fields: [assignedToId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
+  @@index([customerId])
   @@index([serialRegistryId])
+  @@index([assignedToId])
   @@index([status])
   @@map("support_tickets")
 }

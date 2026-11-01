@@ -1,3 +1,4 @@
+
 // ----------------------------------------------------
 // ENUMS & CONSTANTS
 // ----------------------------------------------------
@@ -18,14 +19,23 @@ export type RoofType = "FLAT_RCC" | "METAL_SHEET" | "TILED" | "GROUND_MOUNT";
 
 export type ProjectStatus =
   | "LEAD_RECEIVED"
+  | "SURVEY_PENDING"
   | "SURVEY_SCHEDULED"
   | "SURVEY_APPROVED"
+  | "SURVEY_REJECTED"
+  | "QUOTATION_ISSUED"
   | "QUOTE_ACCEPTED"
+  | "ORDER_CONFIRMED"
   | "DISPATCH_PENDING"
+  | "MATERIAL_DISPATCHED"
   | "DISPATCHED"
   | "INSTALLATION_IN_PROGRESS"
+  | "INSTALLATION_COMPLETED"
   | "COMMISSIONED"
+  | "NET_METERING_PENDING"
   | "DISCOM_SYNCED"
+  | "COMPLETED"
+  | "ON_HOLD"
   | "CANCELLED";
 
 export type ComponentCategory =
@@ -44,7 +54,13 @@ export type SerialStatus =
   | "FAILED_RMA"
   | "RETURNED_TO_VENDOR";
 
-export type TicketStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
+export type TicketStatus =
+  | "OPEN"
+  | "INVESTIGATING"
+  | "IN_PROGRESS"
+  | "PARTS_REPLACED"
+  | "RESOLVED"
+  | "CLOSED";
 
 export type BillingType = "WARRANTY_FREE" | "BILLABLE";
 
@@ -222,6 +238,32 @@ export interface Project {
   dispatchedSerials?: SerialRegistry[];
   installationRecord?: InstallationRecord[];
   supportTickets?: SupportTicket[];
+}
+
+// ----------------------------------------------------
+// FRONTEND LEAD & DISPATCH TYPES
+// ----------------------------------------------------
+
+export interface ProjectLead {
+  id: number;
+  projectCode: string;
+  customerId: number;
+  customerName?: string;
+  fullName?: string;
+  phone?: string;
+  email?: string | null;
+  installationAddress?: string;
+  capacityKw?: number | string;
+  systemType?: SystemType;
+  status: ProjectStatus;
+  createdAt?: string;
+}
+
+export interface SerialVerificationItem {
+  serialNumber: string;
+  isValid: boolean;
+  message?: string;
+  stockItem?: StockItem;
 }
 
 // ----------------------------------------------------

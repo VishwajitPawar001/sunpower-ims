@@ -1,13 +1,19 @@
+
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { handleApiError, apiSuccess, ApiError } from "@/lib/errorHandler";
 import { BillingType, TicketStatus, UserRole } from "@prisma/client";
 
-// GET /api/tickets - List support tickets with filter and search capability
+// GET /api/tickets - List support tickets
 export async function GET(req: NextRequest) {
   try {
-    requireRole(req, [UserRole.SUPPORT, UserRole.LEAD_TECHNICIAN, UserRole.ADMIN, UserRole.DIRECTOR]);
+    requireRole(req, [
+      UserRole.SUPPORT,
+      UserRole.LEAD_TECHNICIAN,
+      UserRole.ADMIN,
+      UserRole.DIRECTOR,
+    ]);
 
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status") as TicketStatus | null;
@@ -36,11 +42,17 @@ export async function GET(req: NextRequest) {
         project: {
           include: {
             packageTemplate: true,
-            dispatchedSerials: { include: { stockItem: true } },
+            dispatchedSerials: {
+              include: { stockItem: true },
+            },
           },
         },
         assignedTo: {
-          select: { fullName: true, employeeCode: true, phone: true },
+          select: {
+            fullName: true,
+            employeeCode: true,
+            phone: true,
+          },
         },
       },
       orderBy: { createdAt: "desc" },
@@ -52,12 +64,17 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/tickets - Intake support ticket with automatic warranty evaluation
+// POST /api/tickets - Create support ticket
 export async function POST(req: NextRequest) {
   try {
-    requireRole(req, [UserRole.SUPPORT, UserRole.ADMIN, UserRole.DIRECTOR]);
+    requireRole(req, [
+      UserRole.SUPPORT,
+      UserRole.ADMIN,
+      UserRole.DIRECTOR,
+    ]);
 
     const body = await req.json();
+
     const {
       projectId,
       reportedIssue,
@@ -66,35 +83,45 @@ export async function POST(req: NextRequest) {
     } = body;
 
     if (!projectId || !reportedIssue) {
-      throw new ApiError(400, "BAD_REQUEST", "projectId and reportedIssue are required.");
+      throw new ApiError(
+        400,
+        "BAD_REQUEST",
+        "projectId and reportedIssue are required."
+      );
     }
 
     const project = await prisma.project.findUnique({
       where: { id: Number(projectId) },
-      include: { customer: true, dispatchedSerials: true },
+      include: {
+        customer: true,
+        dispatchedSerials: true,
+      },
     });
 
     if (!project) {
       throw new ApiError(404, "NOT_FOUND", "Project not found.");
     }
 
-    // Determine warranty coverage automatically
-    let billingType = BillingType.WARRANTY_FREE;
+    // Determine warranty coverage automatically.
+    let billingType: BillingType = BillingType.WARRANTY_FREE;
 
     if (faultySerialNumber) {
       const serial = await prisma.serialRegistry.findUnique({
-        where: { serialNumber: String(faultySerialNumber).trim() },
+        where: {
+          serialNumber: String(faultySerialNumber).trim(),
+        },
       });
 
-      if (serial && serial.warrantyEndDate) {
+      if (serial?.warrantyEndDate) {
         const isExpired = new Date() > new Date(serial.warrantyEndDate);
+
         if (isExpired) {
           billingType = BillingType.BILLABLE;
         }
       }
     }
 
-    // Generate sequential ticket code: TCK-#####
+    // Generate ticket code.
     const ticketCount = await prisma.supportTicket.count();
     const nextTicketNum = String(ticketCount + 1).padStart(5, "0");
     const ticketCode = `TCK-${nextTicketNum}`;
@@ -108,13 +135,18 @@ export async function POST(req: NextRequest) {
         status: TicketStatus.OPEN,
         billingType,
         reportedIssue: String(reportedIssue).trim(),
-        faultySerialNumber: faultySerialNumber ? String(faultySerialNumber).trim() : null,
+        faultySerialNumber: faultySerialNumber
+          ? String(faultySerialNumber).trim()
+          : null,
       },
       include: {
         customer: true,
         project: true,
         assignedTo: {
-          select: { fullName: true, employeeCode: true },
+          select: {
+            fullName: true,
+            employeeCode: true,
+          },
         },
       },
     });

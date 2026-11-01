@@ -8,6 +8,10 @@ import {
   SerialRegistry,
 } from "@/types/solar";
 
+// ----------------------------------------------------
+// API RESPONSE INTERFACE
+// ----------------------------------------------------
+
 interface ApiResponse<T> {
   success: boolean;
   data: T;
@@ -17,7 +21,25 @@ interface ApiResponse<T> {
   };
 }
 
-async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+// ----------------------------------------------------
+// API ERROR CLASS
+// ----------------------------------------------------
+
+export class ApiError extends Error {
+  constructor(public statusCode: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+// ----------------------------------------------------
+// COMMON API REQUEST FUNCTION
+// ----------------------------------------------------
+
+async function request<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<T> {
   const headers = {
     "Content-Type": "application/json",
     ...options.headers,
@@ -28,11 +50,23 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers,
   });
 
-  const json: ApiResponse<T> = await response.json();
+  let json: ApiResponse<T>;
+
+  try {
+    json = await response.json();
+  } catch {
+    throw new ApiError(
+      response.status,
+      "Invalid server response"
+    );
+  }
 
   if (!response.ok || !json.success) {
-    const errorMsg = json.error?.message || `Request failed with status ${response.status}`;
-    throw new Error(errorMsg);
+    const errorMsg =
+      json.error?.message ||
+      `Request failed with status ${response.status}`;
+
+    throw new ApiError(response.status, errorMsg);
   }
 
   return json.data;
@@ -42,12 +76,24 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 // AUTHENTICATION
 // ----------------------------------------------------
 
-export async function loginUser(email: string, password: string): Promise<User> {
+export interface LoginPayload {
+  email: string;
+  password: string;
+}
+
+export async function loginUser(
+  payload: LoginPayload
+): Promise<User> {
   return request<User>("/api/auth/login", {
     method: "POST",
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({
+      email: payload.email.trim(),
+      password: payload.password,
+    }),
   });
 }
+
+export const loginApi = loginUser;
 
 // ----------------------------------------------------
 // PHASE 1: LEADS & SURVEYS
@@ -62,46 +108,48 @@ export interface CreateLeadPayload {
   phone: string;
   email?: string;
   installationAddress: string;
-  city?: string;
-  state?: string;
-  pincode?: string;
-  systemCapacityKw: number;
-  systemType?: string;
-  consumerAccountNumber?: string;
-  sanctionedLoadKw?: number;
-  monthlyPowerBill?: number;
-  packageTemplateId?: number;
+  projectCode: string;
+  capacityKw: number;
+  systemType: "ON_GRID" | "OFF_GRID" | "HYBRID";
+  agreedPrice?: number;
 }
 
-export async function createLead(payload: CreateLeadPayload): Promise<Project> {
+export async function createLead(
+  payload: CreateLeadPayload
+): Promise<Project> {
   return request<Project>("/api/leads", {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
-export async function fetchSurveys(projectId?: number): Promise<SiteSurvey[]> {
-  const url = projectId ? `/api/surveys?projectId=${projectId}` : "/api/surveys";
+export async function fetchSurveys(
+  projectId?: number
+): Promise<SiteSurvey[]> {
+  const url = projectId
+    ? `/api/surveys?projectId=${projectId}`
+    : "/api/surveys";
+
   return request<SiteSurvey[]>(url);
 }
 
 export interface SubmitSurveyPayload {
   projectId: number;
-  roofType: string;
-  usableAreaSqFt: number;
-  isSouthFacing: boolean;
-  tiltAngleDeg: number;
-  hasShadingIssue: boolean;
-  parapetHeightFt?: number;
-  dcCableRunMtrs: number;
-  acCableRunMtrs: number;
-  earthPitViable: boolean;
-  isApproved: boolean;
-  rejectionReason?: string;
-  surveyNotes?: string;
+  surveyorId: number;
+  roofType: "FLAT_RCC" | "METAL_SHEET" | "TILED" | "GROUND_MOUNT";
+  roofUsableAreaSqm: number;
+  tiltDegrees: number;
+  azimuthDegrees: number;
+  cableRunMeters: number;
+  sanctionedLoadKw: number;
+  isShadowFree: boolean;
+  isViable: boolean;
+  notes?: string;
 }
 
-export async function submitSurvey(payload: SubmitSurveyPayload): Promise<SiteSurvey> {
+export async function submitSurvey(
+  payload: SubmitSurveyPayload
+): Promise<SiteSurvey> {
   return request<SiteSurvey>("/api/surveys", {
     method: "POST",
     body: JSON.stringify(payload),
@@ -118,14 +166,16 @@ export interface GenerateQuotePayload {
   customQuotedPrice?: number;
 }
 
-export async function generateQuote(payload: GenerateQuotePayload) {
-  return request<{ project: Project; quotationBreakdown: Record<string, unknown> }>(
-    "/api/quotes/generate",
-    {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }
-  );
+export async function generateQuote(
+  payload: GenerateQuotePayload
+) {
+  return request<{
+    project: Project;
+    quotationBreakdown: Record<string, unknown>;
+  }>("/api/quotes/generate", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export interface RecordPaymentPayload {
@@ -134,8 +184,13 @@ export interface RecordPaymentPayload {
   milestoneType: "BOOKING_20" | "PRE_DISPATCH_70";
 }
 
-export async function recordMilestonePayment(payload: RecordPaymentPayload) {
-  return request<{ message: string; project: Project }>("/api/orders/confirm", {
+export async function recordMilestonePayment(
+  payload: RecordPaymentPayload
+) {
+  return request<{
+    message: string;
+    project: Project;
+  }>("/api/orders/confirm", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -155,14 +210,20 @@ export async function fetchDispatchData(): Promise<{
   }>("/api/dispatch");
 }
 
-export async function dispatchProjectKit(projectId: number, serialNumbers: string[]) {
+export async function dispatchProjectKit(
+  projectId: number,
+  serialNumbers: string[]
+) {
   return request<{
     message: string;
     project: Project;
     dispatchedSerials: SerialRegistry[];
   }>("/api/dispatch", {
     method: "POST",
-    body: JSON.stringify({ projectId, serialNumbers }),
+    body: JSON.stringify({
+      projectId,
+      serialNumbers,
+    }),
   });
 }
 
@@ -172,20 +233,21 @@ export async function dispatchProjectKit(projectId: number, serialNumbers: strin
 
 export interface SubmitCommissioningPayload {
   projectId: number;
-  civilPadsCompleted: boolean;
-  groutCuringVerified: boolean;
-  structureTorqued: boolean;
-  dcConduitCompleted: boolean;
-  earthPitsCompleted: boolean;
-  vocVolts: number;
-  iscAmperes: number;
-  earthResistanceOhms: number;
+  leadTechnicianId: number;
+  vocVoltsMeasured: number;
+  iscAmpsMeasured: number;
+  earthingResistanceOhms: number;
+  completionPhotoUrl: string;
   customerSignatureSvg: string;
-  roofPhotoUrl?: string;
 }
 
-export async function submitCommissioning(payload: SubmitCommissioningPayload) {
-  return request<{ message: string; project: Project }>("/api/commissioning/sign", {
+export async function submitCommissioning(
+  payload: SubmitCommissioningPayload
+) {
+  return request<{
+    message: string;
+    project: Project;
+  }>("/api/commissioning/sign", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -195,23 +257,35 @@ export async function submitCommissioning(payload: SubmitCommissioningPayload) {
 // PHASE 8: SUPPORT TICKETS & RMA SWAPS
 // ----------------------------------------------------
 
-export async function fetchTickets(status?: string, search?: string): Promise<SupportTicket[]> {
+export async function fetchTickets(
+  status?: string,
+  search?: string
+): Promise<SupportTicket[]> {
   const params = new URLSearchParams();
+
   if (status) params.append("status", status);
   if (search) params.append("search", search);
 
   const query = params.toString();
-  return request<SupportTicket[]>(query ? `/api/tickets?${query}` : "/api/tickets");
+
+  return request<SupportTicket[]>(
+    query ? `/api/tickets?${query}` : "/api/tickets"
+  );
 }
 
 export interface CreateTicketPayload {
+  ticketNumber: string;
   projectId: number;
-  reportedIssue: string;
-  faultySerialNumber?: string;
-  assignedToId?: number;
+  serialRegistryId?: number;
+  reportedFaultCode: string;
+  description: string;
+  isCoveredUnderWarranty: boolean;
+  billableAmount?: number;
 }
 
-export async function createTicket(payload: CreateTicketPayload): Promise<SupportTicket> {
+export async function createTicket(
+  payload: CreateTicketPayload
+): Promise<SupportTicket> {
   return request<SupportTicket>("/api/tickets", {
     method: "POST",
     body: JSON.stringify(payload),
@@ -220,13 +294,17 @@ export async function createTicket(payload: CreateTicketPayload): Promise<Suppor
 
 export interface UpdateTicketPayload {
   status?: string;
-  assignedToId?: number | null;
-  resolutionNotes?: string;
-  faultySerialNumber?: string;
-  replacementSerialNumber?: string;
+  reportedFaultCode?: string;
+  description?: string;
+  isCoveredUnderWarranty?: boolean;
+  billableAmount?: number;
+  serialRegistryId?: number | null;
 }
 
-export async function updateTicket(ticketId: number, payload: UpdateTicketPayload): Promise<SupportTicket> {
+export async function updateTicket(
+  ticketId: number,
+  payload: UpdateTicketPayload
+): Promise<SupportTicket> {
   return request<SupportTicket>(`/api/tickets/${ticketId}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
@@ -243,5 +321,7 @@ export interface DirectorAnalyticsResponse {
 }
 
 export async function fetchDirectorMargins(): Promise<DirectorAnalyticsResponse> {
-  return request<DirectorAnalyticsResponse>("/api/analytics/margins");
+  return request<DirectorAnalyticsResponse>(
+    "/api/analytics/margins"
+  );
 }

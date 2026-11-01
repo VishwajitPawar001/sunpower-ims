@@ -1,29 +1,46 @@
 import { NextRequest } from "next/server";
 import jwt from "jsonwebtoken";
 import { ApiError } from "./errorHandler";
+import type { UserRole } from "@/types/solar";
 
-const JWT_SECRET = process.env.NEXTAUTH_SECRET || "fallback-secret-min-32-chars-long";
+const JWT_SECRET =
+  process.env.JWT_SECRET || "default-sunpower-secret-key-change-in-prod";
 
-export type AllowedRole = "ADMIN" | "SALES" | "SURVEYOR" | "WAREHOUSE" | "TECHNICIAN" | "SUPPORT";
+export type AllowedRole = UserRole | "TECHNICIAN";
 
 export interface UserSession {
+  id: number;
   userId: string;
   email: string;
   role: AllowedRole;
   fullName: string;
+  employeeCode?: string;
 }
 
 export function signJwtToken(payload: UserSession): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: "8h" });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: "12h" });
 }
 
-export function requireRole(req: NextRequest, allowedRoles: AllowedRole[]): UserSession {
+export function requireRole(
+  req: NextRequest,
+  allowedRoles: AllowedRole[]
+): UserSession {
+  // Support both Bearer tokens and the login HTTP-only cookie.
   const authHeader = req.headers.get("authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    throw new ApiError(401, "UNAUTHORIZED", "Missing or invalid authorization token.");
+
+  const token =
+    authHeader?.startsWith("Bearer ")
+      ? authHeader.slice(7)
+      : req.cookies.get("auth-token")?.value;
+
+  if (!token) {
+    throw new ApiError(
+      401,
+      "UNAUTHORIZED",
+      "Missing or invalid authorization token."
+    );
   }
 
-  const token = authHeader.split(" ")[1];
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as UserSession;
 
@@ -37,7 +54,14 @@ export function requireRole(req: NextRequest, allowedRoles: AllowedRole[]): User
 
     return decoded;
   } catch (error) {
-    if (error instanceof ApiError) throw error;
-    throw new ApiError(401, "UNAUTHORIZED", "Session expired or invalid token.");
+    if (error instanceof ApiError) {
+      throw error;
+    }
+
+    throw new ApiError(
+      401,
+      "UNAUTHORIZED",
+      "Session expired or invalid token."
+    );
   }
 }

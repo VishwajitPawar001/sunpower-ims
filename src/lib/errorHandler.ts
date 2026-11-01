@@ -1,17 +1,24 @@
-import { NextResponse } from 'next/server';
-import { success, ZodError } from 'zod';
+import { NextResponse } from "next/server";
+import { ZodError } from "zod";
 
 export type ApiErrorCode =
-  | 'VALIDATION_ERROR'
-  | 'UNAUTHORIZED'
-  | 'FORBIDDEN'
-  | 'NOT_FOUND'
-  | 'INVALID_STATE_TRANSITION'
-  | 'TRANSACTION_CONFLICT'
-  | 'INSUFFICIENT_STOCK'
-  | 'SERIAL_NOT_FOUND'
-  | 'SERIAL_ALREADY_ASSIGNED'
-  | 'INTERNAL_SERVER_ERROR';
+  | "VALIDATION_ERROR"
+  | "BAD_REQUEST"
+  | "UNAUTHORIZED"
+  | "FORBIDDEN"
+  | "NOT_FOUND"
+  | "INVALID_STATE_TRANSITION"
+  | "INVALID_TRANSITION"
+  | "TRANSACTION_CONFLICT"
+  | "INSUFFICIENT_STOCK"
+  | "SERIAL_NOT_FOUND"
+  | "SERIAL_ALREADY_ASSIGNED"
+  | "SERIAL_ALREADY_DISPATCHED"
+  | "SERIAL_UNAVAILABLE"
+  | "SAFETY_VIOLATION"
+  | "PAYMENT_GATE_LOCKED"
+  | "WORKFLOW_VIOLATION"
+  | "INTERNAL_SERVER_ERROR";
 
 export class ApiError extends Error {
   public readonly statusCode: number;
@@ -25,7 +32,7 @@ export class ApiError extends Error {
     fieldErrors: Record<string, string[]> | null = null
   ) {
     super(message);
-    this.name = 'ApiError';
+    this.name = "ApiError";
     this.statusCode = statusCode;
     this.code = code;
     this.fieldErrors = fieldErrors;
@@ -39,7 +46,8 @@ export function handleApiError(error: unknown) {
     const fieldErrors: Record<string, string[]> = {};
 
     for (const issue of error.issues) {
-      const path = issue.path.join('.');
+      const path = issue.path.join(".");
+
       if (!fieldErrors[path]) {
         fieldErrors[path] = [];
       }
@@ -51,8 +59,8 @@ export function handleApiError(error: unknown) {
       {
         success: false,
         error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Input validation failed. Please check submitted fields.',
+          code: "VALIDATION_ERROR",
+          message: "Input validation failed. Please check submitted fields.",
           fieldErrors,
           timestamp,
         },
@@ -76,14 +84,14 @@ export function handleApiError(error: unknown) {
     );
   }
 
-  console.log('Unhandled Internal API Error: ', error);
+  console.error("Unhandled Internal API Error:", error);
 
   return NextResponse.json(
     {
       success: false,
       error: {
-        code: 'INTERNAL_SERVER_ERROR',
-        message: 'An internal server error occurred.',
+        code: "INTERNAL_SERVER_ERROR",
+        message: "An internal server error occurred.",
         fieldErrors: null,
         timestamp,
       },

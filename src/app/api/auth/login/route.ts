@@ -36,16 +36,17 @@ export async function POST(req: NextRequest) {
 
     // Create signed token with employee role and code
     const token = jwt.sign(
-      {
-        id: user.id,
-        employeeCode: user.employeeCode,
-        email: user.email,
-        role: user.role,
-        fullName: user.fullName,
-      },
-      JWT_SECRET,
-      { expiresIn: "12h" }
-    );
+  {
+    id: user.id,
+    userId: String(user.id),
+    employeeCode: user.employeeCode,
+    email: user.email,
+    role: user.role,
+    fullName: user.fullName,
+  },
+  JWT_SECRET,
+  { expiresIn: "12h" }
+);
 
     // Build response with httpOnly cookie
     const response = NextResponse.json({

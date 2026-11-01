@@ -1,13 +1,14 @@
-import { z } from 'zod';
+
+import { z } from "zod";
 
 export const customerLeadSchema = z
   .object({
     fullName: z.string().min(2).max(150),
     phone: z.string().min(8).max(20),
-    email: z.string().email().optional().or(z.literal('')),
+    email: z.string().email().optional().or(z.literal("")),
     installationAddress: z.string().min(5),
     capacityKw: z.number().positive().max(100),
-    systemType: z.enum(['ON_GRID', 'OFF_GRID']),
+    systemType: z.enum(["ON_GRID", "OFF_GRID"]),
   })
   .strict();
 
@@ -44,7 +45,7 @@ export const supportTicketSchema = z
 export const quoteGenerateSchema = z
   .object({
     projectId: z.string().uuid(),
-    marginMarkupPercent: z.number().min(0).max(100).default(15), // standard margin
+    marginMarkupPercent: z.number().min(0).max(100).default(15),
   })
   .strict();
 
@@ -57,57 +58,60 @@ export const orderConfirmSchema = z
 
 export const commissioningSignSchema = z
   .object({
-    projectId: z.string().uuid('Invalid project ID format'),
-    vocVoltsMeasured: z.number().positive('Voc must be positive'),
-    iscAmpsMeasured: z.number().positive('Isc must be positive'),
+    projectId: z.string().uuid("Invalid project ID format"),
+    vocVoltsMeasured: z.number().positive("Voc must be positive"),
+    iscAmpsMeasured: z.number().positive("Isc must be positive"),
     earthingResistanceOhms: z
       .number()
-      .positive('Earthing resistance must be positive'),
-    completionPhotoUrl: z.string().url('Must be a valid photo URL'),
+      .positive("Earthing resistance must be positive"),
+    completionPhotoUrl: z.string().url("Must be a valid photo URL"),
     customerSignatureSvg: z
       .string()
-      .min(10, 'Valid SVG path signature required'),
+      .min(10, "Valid SVG path signature required"),
   })
   .strict();
 
 export const updateTicketSchema = z
   .object({
-    status: z.enum([
-  "OPEN",
-  "INVESTIGATING",
-  "PARTS_REPLACED",
-  "RESOLVED",
-  "CLOSED",
-  ]),
-    description: z.string().min(5, "Description must be at least 5 characters").optional(),
-    status: z.enum(['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED']),
+    status: z
+      .enum([
+        "OPEN",
+        "INVESTIGATING",
+        "IN_PROGRESS",
+        "PARTS_REPLACED",
+        "RESOLVED",
+        "CLOSED",
+      ])
+      .optional(),
+
     description: z
       .string()
-      .min(5, 'Description must be at least 5 characters')
+      .min(5, "Description must be at least 5 characters")
       .optional(),
+
     replacementSerial: z.string().optional(),
   })
   .strict();
 
 export const loginSchema = z
   .object({
-    email: z.string().email('Valid email is required'),
-    password: z.string().min(6, 'Password must be at least 6 characters'),
+    email: z.string().email("Valid email is required"),
+    password: z.string().min(6, "Password must be at least 6 characters"),
   })
   .strict();
 
 export const createUserSchema = z
   .object({
-    email: z.string().email('Valid email is required'),
-    fullName: z.string().min(2, 'Full name must be at least 2 characters'),
+    email: z.string().email("Valid email is required"),
+    fullName: z.string().min(2, "Full name must be at least 2 characters"),
     role: z.enum([
-      'ADMIN',
-      'SALES',
-      'SURVEYOR',
-      'WAREHOUSE',
-      'TECHNICIAN',
-      'SUPPORT',
+      "ADMIN",
+      "SALES",
+      "SURVEYOR",
+      "WAREHOUSE",
+      "LEAD_TECHNICIAN",
+      "SUPPORT",
     ]),
-    password: z.string().min(8, 'Password must be at least 8 characters'),
+    password: z.string().min(8, "Password must be at least 8 characters"),
   })
   .strict();
