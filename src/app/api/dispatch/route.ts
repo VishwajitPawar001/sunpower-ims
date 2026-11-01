@@ -145,3 +145,32 @@ export async function POST(req: NextRequest) {
     return handleApiError(error);
   }
 }
+
+export async function GET(req: NextRequest) {
+  try {
+    requireRole(req, ["ADMIN", "DIRECTOR", "WAREHOUSE", "TECHNICIAN"]);
+    const { searchParams } = new URL(req.url);
+    const projectId = searchParams.get("projectId");
+
+    const stockItems = await prisma.stockItem.findMany({
+      include: {
+        serialRegistry: {
+          where: projectId ? { projectId } : undefined,
+        },
+      },
+      orderBy: { category: "asc" },
+    });
+
+    const availableSerials = await prisma.serialRegistry.findMany({
+      where: { isDispatched: false },
+      include: { stockItem: true },
+    });
+
+    return apiSuccess({
+      stockItems,
+      availableSerials,
+    });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}

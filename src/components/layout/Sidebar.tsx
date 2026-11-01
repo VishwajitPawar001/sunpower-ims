@@ -38,60 +38,60 @@ interface CommandRailItem {
 const COMMAND_ITEMS: CommandRailItem[] = [
   { 
     id: 'sales-leads', 
-    label: 'Commercial CRM', 
-    code: 'CRM-01',
-    allowedRoles: ['SALES', 'DIRECTOR'], 
+    label: 'Leads & CRM', 
+    code: '01',
+    allowedRoles: ['SALES', 'DIRECTOR', 'ADMIN'], 
     icon: Building2, 
-    subtext: 'Pipeline & Discovery' 
+    subtext: 'Customer Pipeline' 
   },
   { 
     id: 'surveyor-form', 
-    label: 'Site Feasibility', 
-    code: 'SRV-02',
-    allowedRoles: ['SURVEYOR', 'DIRECTOR'], 
+    label: 'Site Survey', 
+    code: '02',
+    allowedRoles: ['SURVEYOR', 'DIRECTOR', 'ADMIN'], 
     icon: Compass, 
-    subtext: '3D Solar Roof Survey' 
+    subtext: 'Rooftop Feasibility' 
   },
   { 
     id: 'sales-quotes', 
-    label: 'Engineering BOM', 
-    code: 'BOM-03',
-    allowedRoles: ['SALES', 'DIRECTOR'], 
+    label: 'Quote & BOM', 
+    code: '03',
+    allowedRoles: ['SALES', 'DIRECTOR', 'ADMIN'], 
     icon: Cpu, 
-    subtext: 'System Sizing & Pricing' 
+    subtext: 'Sizing & Pricing' 
   },
   { 
     id: 'warehouse-dispatch', 
-    label: 'Warehouse Dispatch', 
-    code: 'DSP-04',
-    allowedRoles: ['WAREHOUSE', 'DIRECTOR'], 
+    label: 'Inventory Dispatch', 
+    code: '04',
+    allowedRoles: ['WAREHOUSE', 'DIRECTOR', 'ADMIN'], 
     icon: Boxes, 
-    subtext: 'Barcode & Serial Scanner',
+    subtext: 'Hardware Serials',
     hasLivePulse: true
   },
   { 
     id: 'technician-signoff', 
-    label: 'Field Commissioning', 
-    code: 'SIG-05',
-    allowedRoles: ['TECHNICIAN', 'DIRECTOR'], 
+    label: 'Commissioning', 
+    code: '05',
+    allowedRoles: ['TECHNICIAN', 'DIRECTOR', 'ADMIN'], 
     icon: ClipboardCheck, 
     subtext: 'Electrical Sign-off' 
   },
   { 
     id: 'director-margins', 
-    label: 'Margin & P&L Audit', 
-    code: 'FIN-06',
-    allowedRoles: ['DIRECTOR'], 
+    label: 'Margins & P&L', 
+    code: '06',
+    allowedRoles: ['DIRECTOR', 'ADMIN'], 
     icon: TrendingUp, 
-    subtext: 'Executive Unit Economics' 
+    subtext: 'Executive Financials' 
   },
   { 
     id: 'support-tickets', 
-    label: 'Service Desk & SLA', 
-    code: 'SUP-07',
-    allowedRoles: ['SALES', 'DIRECTOR'], 
+    label: 'Support Desk', 
+    code: '07',
+    allowedRoles: ['SUPPORT', 'SALES', 'DIRECTOR', 'ADMIN'], 
     icon: Headphones, 
-    subtext: 'Post-Install Support' 
+    subtext: 'Warranty & Tickets' 
   },
 ];
 
@@ -102,7 +102,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onLogout,
   enforceRbac = true,
 }) => {
-  const canSwitchRoles = currentRole === 'DIRECTOR';
+  const isPrivileged = currentRole === 'DIRECTOR' || currentRole === 'ADMIN';
 
   return (
     <aside className="w-[72px] bg-[#060A12] border-r border-slate-800/80 flex flex-col items-center justify-between py-4 select-none shrink-0 z-30 shadow-2xl">
@@ -136,7 +136,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {currentRole} WORKSPACE
             </span>
             <span className="text-[10px] text-slate-400 font-mono mt-0.5">
-              {canSwitchRoles ? 'Context Switching: Active' : 'Strict Role-Based Access Enforced'}
+              {isPrivileged ? 'Executive Clearance: Full Matrix Access' : 'Strict Role-Based Access Enforced'}
             </span>
           </div>
         </div>
@@ -146,7 +146,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {COMMAND_ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive = activeView === item.id;
-            const isPermitted = item.allowedRoles.includes(currentRole);
+            const isPermitted = isPrivileged || item.allowedRoles.includes(currentRole);
 
             if (enforceRbac && !isPermitted) return null;
 

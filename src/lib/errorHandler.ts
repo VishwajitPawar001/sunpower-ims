@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { success, ZodError } from 'zod';
+import { ZodError } from 'zod';
 
 export type ApiErrorCode =
   | 'VALIDATION_ERROR'

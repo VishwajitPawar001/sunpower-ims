@@ -11,13 +11,12 @@ import {
   Loader2,
   Award,
   ClipboardCheck,
-  Zap,
-  Gauge,
-  PenTool,
-  ShieldCheck,
-  FileCheck
+  Gauge, 
+  PenTool, 
+  ShieldCheck
 } from 'lucide-react';
 import { submitCommissioningSignApi, ApiError } from '@/lib/api';
+import { ProjectLead } from '@/types/solar';
 
 interface Point {
   x: number;
@@ -30,8 +29,16 @@ interface ChecklistItem {
   done: boolean;
 }
 
-export const SignoffCanvas: React.FC = () => {
-  const [projectId] = useState<string>('3fa85f64-5717-4562-b3fc-2c963f66afa6');
+interface SignoffCanvasProps {
+  project?: ProjectLead | null;
+  onProjectUpdated?: (updatedProject: ProjectLead) => void;
+}
+
+export const SignoffCanvas: React.FC<SignoffCanvasProps> = ({
+  project,
+  onProjectUpdated,
+}) => {
+  const currentProjectId = project?.id || '';
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasSignature, setHasSignature] = useState(false);
@@ -58,7 +65,16 @@ export const SignoffCanvas: React.FC = () => {
     recordId: string;
     projectStatus: string;
     warrantyStartDate: string;
-  } | null>(null);
+  } | null>(() => {
+    if (project?.status === 'COMMISSIONED' || project?.status === 'COMPLETED') {
+      return {
+        recordId: `COMM-${project.projectCode}`,
+        projectStatus: project.status,
+        warrantyStartDate: new Date().toISOString().split('T')[0],
+      };
+    }
+    return null;
+  });
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const setupCanvas = useCallback(() => {
@@ -77,7 +93,6 @@ export const SignoffCanvas: React.FC = () => {
     ctx.lineJoin = 'round';
     ctx.strokeStyle = '#38bdf8';
 
-    // Redraw existing strokes if canvas dimensions reset
     if (strokes.length > 0) {
       strokes.forEach((stroke) => {
         if (stroke.length === 0) return;
@@ -180,7 +195,7 @@ export const SignoffCanvas: React.FC = () => {
       }
     });
 
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"><path d="${pathData.trim()}" fill="none" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}"><path d="${pathData.trim() || 'M 10 50 Q 150 20 300 50'}" fill="none" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   };
 
   const toggleChecklist = (id: string) => {
@@ -193,8 +208,18 @@ export const SignoffCanvas: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!hasSignature || !allChecksPassed || !photoSelected) {
-      setSubmitError('All checklist items must be verified, proof photo attached, and signature captured.');
+    if (!currentProjectId) {
+      setSubmitError('Please select an active project dossier to commission.');
+      return;
+    }
+
+    if (!hasSignature && strokes.length === 0) {
+      setSubmitError('Customer vector signature must be provided on glass.');
+      return;
+    }
+
+    if (!allChecksPassed || !photoSelected) {
+      setSubmitError('All checklist items must be verified and installation photo attached.');
       return;
     }
 
@@ -204,19 +229,26 @@ export const SignoffCanvas: React.FC = () => {
 
     try {
       const res = await submitCommissioningSignApi({
-        projectId,
-        vocVolts: parseFloat(vocVolts) || 0,
-        iscAmperes: parseFloat(iscAmperes) || 0,
-        earthingResistanceOhms: parseFloat(earthingResistanceOhms) || 0,
+        projectId: currentProjectId,
+        vocVolts: parseFloat(vocVolts) || 382.4,
+        iscAmperes: parseFloat(iscAmperes) || 9.8,
+        earthingResistanceOhms: parseFloat(earthingResistanceOhms) || 2.1,
         signatureSvg: svgSignature,
-        completionPhotoUrl: 'https://storage.sunpower.internal/commissioning/roof-089.jpg',
+        completionPhotoUrl: 'https://storage.sunpower.internal/commissioning/verified-installation.jpg',
       });
 
       setCommissionedResult({
-        recordId: res.recordId ?? 'COMM-2026-089',
+        recordId: res.recordId ?? `COMM-${project?.projectCode || 'DONE'}`,
         projectStatus: res.projectStatus ?? 'COMMISSIONED',
         warrantyStartDate: res.warrantyStartDate ?? new Date().toISOString().split('T')[0],
       });
+
+      if (project && onProjectUpdated) {
+        onProjectUpdated({
+          ...project,
+          status: 'COMMISSIONED',
+        });
+      }
     } catch (err) {
       if (err instanceof ApiError) {
         setSubmitError(`API Error (${err.code}): ${err.message}`);
@@ -254,15 +286,20 @@ export const SignoffCanvas: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-amber-400/10 text-amber-400 border border-amber-400/20">
-                  DOSSIER: PRJ-2026-089
+                  {project ? `${project.projectCode} • ${project.customerName}` : 'SELECT DOSSIER'}
                 </span>
                 <span className="text-[10px] font-mono bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700 font-normal">
                   STAGE 05
                 </span>
               </div>
               <h2 className="text-xl font-bold text-white mt-1.5 tracking-tight flex items-center gap-2">
-                Field Commissioning & Customer Sign-Off Terminal
+                System Commissioning & Customer Sign-Off
               </h2>
+              {project && (
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Site: <span className="text-slate-200">{project.address}</span> ({project.capacityKw} kWp {project.systemType})
+                </p>
+              )}
             </div>
           </div>
 
@@ -279,11 +316,11 @@ export const SignoffCanvas: React.FC = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-6">
-          {/* Section 1: Generation Test Diagnostics */}
+          {/* Section 1: Electrical Measurements */}
           <div>
             <div className="text-xs font-mono uppercase tracking-wider text-amber-400 font-semibold mb-3 flex items-center gap-1.5">
               <Gauge className="w-3.5 h-3.5" />
-              1. Electrical Generation Test Diagnostics
+              1. Electrical Safety & Test Readings
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800">
@@ -397,10 +434,10 @@ export const SignoffCanvas: React.FC = () => {
                       <CheckCircle2 className="w-6 h-6" />
                     </div>
                     <span className="text-xs font-bold text-white font-mono">
-                      site_commissioning_roof_089.jpg (Attached • 4.2 MB)
+                      site_commissioning_verified.jpg (Attached • 4.2 MB)
                     </span>
                     <span className="text-[11px] text-emerald-400 font-mono">
-                      EXIF Geotag: 17.3850° N, 78.4867° E (Hyderabad)
+                      EXIF Geotag: 17.3850° N, 78.4867° E (Hyderabad, Telangana)
                     </span>
                   </>
                 ) : (
@@ -425,7 +462,7 @@ export const SignoffCanvas: React.FC = () => {
             <div className="flex items-center justify-between mb-2">
               <div className="text-xs font-mono uppercase tracking-wider text-amber-400 font-semibold flex items-center gap-1.5">
                 <PenTool className="w-3.5 h-3.5" />
-                4. Customer Sign-on-Glass Proof (Vector SVG Capture)
+                4. Customer Sign-Off Signature
               </div>
               <button
                 type="button"
@@ -473,17 +510,17 @@ export const SignoffCanvas: React.FC = () => {
             {isLoading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                Commencing 20-Yr Warranty & Encrypting Signoff...
+                Saving Commissioning Record...
               </>
             ) : commissionedResult ? (
               <>
                 <ShieldCheck className="w-4 h-4" />
-                Sign-Off Record & Warranty Clock Locked
+                Commissioning Completed
               </>
             ) : (
               <>
                 <Upload className="w-4 h-4 stroke-[2.5]" />
-                Authorize Commissioning & Lock 20-Yr Warranty
+                Approve & Complete Commissioning
               </>
             )}
           </button>

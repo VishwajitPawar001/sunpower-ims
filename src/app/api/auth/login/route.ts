@@ -4,7 +4,10 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { handleApiError, ApiError } from "@/lib/errorHandler";
 
-const JWT_SECRET = process.env.JWT_SECRET || "default-sunpower-secret-key-change-in-prod";
+const JWT_SECRET =
+  process.env.JWT_SECRET ||
+  process.env.NEXTAUTH_SECRET ||
+  "sunpower-super-secret-jwt-key-2026-production";
 
 export async function POST(req: NextRequest) {
   try {

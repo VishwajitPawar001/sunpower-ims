@@ -14,6 +14,7 @@ generator client {
 enum UserRole {
   DIRECTOR
   ADMIN
+  DIRECTOR
   SALES
   SURVEYOR
   WAREHOUSE

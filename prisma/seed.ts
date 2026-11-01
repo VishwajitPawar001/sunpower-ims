@@ -111,6 +111,7 @@ async function main() {
       },
       create: pkg,
     });
+    createdUsers[user.role] = record.id;
   }
   console.log("✓ Initialized 9 system package templates (On-Grid, Off-Grid & Hybrid).");
 
@@ -142,6 +143,7 @@ async function main() {
       },
       create: item,
     });
+    createdStockItems[item.sku] = stock.id;
   }
   console.log("✓ Stocked master hardware inventory with 12 SKU lines.");
 
@@ -186,6 +188,7 @@ async function main() {
     }
     console.log("✓ Registered physical factory barcodes in serial registry.");
   }
+  console.log(`✓ Seeded ${TICKET_COUNT} Support & SLA tickets.`);
 
   // ----------------------------------------------------
   // 5. MASTER SAMPLE CUSTOMER & PROJECT LIFECYCLE

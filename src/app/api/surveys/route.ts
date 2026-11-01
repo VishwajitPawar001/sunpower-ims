@@ -125,3 +125,28 @@ export async function POST(req: NextRequest) {
     return handleApiError(error);
   }
 }
+
+export async function GET(req: NextRequest) {
+  try {
+    requireRole(req, ["ADMIN", "DIRECTOR", "SURVEYOR", "SALES"]);
+    const { searchParams } = new URL(req.url);
+    const projectId = searchParams.get("projectId");
+
+    if (projectId) {
+      const survey = await prisma.siteSurvey.findUnique({
+        where: { projectId },
+        include: { project: true, surveyor: true },
+      });
+      return apiSuccess({ survey });
+    }
+
+    const surveys = await prisma.siteSurvey.findMany({
+      include: { project: { include: { customer: true } } },
+      orderBy: { surveyedAt: "desc" },
+    });
+
+    return apiSuccess({ count: surveys.length, surveys });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}

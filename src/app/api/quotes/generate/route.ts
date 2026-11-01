@@ -74,6 +74,8 @@ export async function POST(req: NextRequest) {
     });
 
     return apiSuccess({
+      quoteId: updatedProject.id,
+      projectStatus: "QUOTE_ISSUED",
       project: updatedProject,
       quotationBreakdown: {
         packageCode: pkg.packageCode,
