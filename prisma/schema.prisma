@@ -40,6 +40,7 @@ enum ProjectStatus {
 enum SystemType {
   ON_GRID
   OFF_GRID
+  HYBRID
 
   @@map("system_type")
 }

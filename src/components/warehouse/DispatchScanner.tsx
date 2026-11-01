@@ -28,13 +28,16 @@ interface DispatchScannerProps {
 function computeProjectBOM(project?: ProjectLead | null): SerialVerificationItem[] {
   const cap = project ? Number(project.capacityKw) : 5.0;
   const isOffGrid = project?.systemType === 'OFF_GRID';
+  const isHybrid = project?.systemType === 'HYBRID';
+  const needsHybridInverter = isOffGrid || isHybrid;
+  const needsBattery = isOffGrid || isHybrid;
   const panelCount = Math.max(2, Math.ceil((cap * 1000) / 550));
 
   const bom: SerialVerificationItem[] = [
     {
-      sku: isOffGrid ? 'INV-HYB-5K-01' : 'INV-GRID-5K',
+      sku: needsHybridInverter ? 'INV-HYB-5K-01' : 'INV-GRID-5K',
       category: 'INVERTER',
-      modelName: `SunPower ${cap}kW ${isOffGrid ? 'Hybrid' : 'Grid-Tied'} Inverter IP65`,
+      modelName: `SunPower ${cap}kW ${needsHybridInverter ? 'Hybrid' : 'Grid-Tied'} Inverter IP65`,
       requiredQty: 1,
       scannedSerials: [],
     },
@@ -47,7 +50,7 @@ function computeProjectBOM(project?: ProjectLead | null): SerialVerificationItem
     },
   ];
 
-  if (isOffGrid) {
+  if (needsBattery) {
     bom.push({
       sku: 'BAT-LFP-48-100',
       category: 'BATTERY',
@@ -198,6 +201,56 @@ export const DispatchScanner: React.FC<DispatchScannerProps> = ({
     }
   };
 
+  const handleAutoFillSerials = async () => {
+    if (!project || availableDbSerials.length === 0 || isFullyDispatched) return;
+    setIsLoading(true);
+    try {
+      const serialsNeeded: string[] = [];
+      const updatedItems = items.map((item) => ({ ...item, scannedSerials: [...item.scannedSerials] }));
+      
+      for (const item of updatedItems) {
+        const needed = item.requiredQty - item.scannedSerials.length;
+        if (needed <= 0) continue;
+        
+        let matchingPrefix = 'PAN-';
+        if (item.category === 'INVERTER') matchingPrefix = 'INV-';
+        else if (item.category === 'BATTERY') matchingPrefix = 'BAT-';
+        
+        const candidateSerials = availableDbSerials.filter(
+          (s) => s.startsWith(matchingPrefix) && !serialsNeeded.includes(s)
+        );
+        const toTake = candidateSerials.slice(0, needed);
+        serialsNeeded.push(...toTake);
+        item.scannedSerials = [...item.scannedSerials, ...toTake];
+      }
+
+      if (serialsNeeded.length === 0) {
+        const remainingDeficit = totalRequired - totalScanned;
+        serialsNeeded.push(...availableDbSerials.slice(0, remainingDeficit));
+      }
+
+      for (const s of serialsNeeded) {
+        await scanDispatchBarcodeApi({
+          projectId: project.id,
+          serialNumber: s,
+        });
+      }
+
+      setItems(updatedItems);
+      setAvailableDbSerials((prev) => prev.filter((s) => !serialsNeeded.includes(s)));
+      if (serialsNeeded.length > 0) {
+        setRecentlyScannedSerial(serialsNeeded[serialsNeeded.length - 1]);
+      }
+      if (project && onProjectUpdated) {
+        onProjectUpdated({ ...project, status: 'DISPATCHED' });
+      }
+    } catch (err) {
+      console.error('Auto fill error:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const renderCategoryIcon = (category: string) => {
     switch (category) {
       case 'INVERTER':
@@ -273,11 +326,11 @@ export const DispatchScanner: React.FC<DispatchScannerProps> = ({
                 </span>
               </div>
               <h2 className="text-xl font-bold text-white mt-1.5 tracking-tight flex items-center gap-2">
-                Hardware Serial Registry & Optical Scanner
+                Warehouse Equipment Dispatch & Serial Tracking
               </h2>
               {project && (
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Destination: <span className="text-slate-200 font-semibold">{project.customerName}</span> • {project.address}
+                  Ship To: <span className="text-slate-200 font-semibold">{project.customerName}</span> • {project.address}
                 </p>
               )}
             </div>
@@ -288,7 +341,7 @@ export const DispatchScanner: React.FC<DispatchScannerProps> = ({
               {totalScanned} / {totalRequired}
             </div>
             <div className="text-[11px] text-slate-400 font-mono mt-0.5">
-              Verified BOM Units Locked
+              Hardware Units Scanned
             </div>
           </div>
         </div>
@@ -298,9 +351,9 @@ export const DispatchScanner: React.FC<DispatchScannerProps> = ({
           <div className="flex items-center justify-between text-xs font-mono mb-2">
             <span className="text-slate-400 flex items-center gap-1.5">
               <PackageCheck className="w-3.5 h-3.5 text-amber-400" />
-              Container Verification Manifest
+              Dispatch Progress
             </span>
-            <span className="font-bold text-amber-400">{fulfillmentPercent}% Sealed</span>
+            <span className="font-bold text-amber-400">{fulfillmentPercent}% Complete</span>
           </div>
           <div className="w-full h-2.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
             <div
@@ -312,15 +365,27 @@ export const DispatchScanner: React.FC<DispatchScannerProps> = ({
 
         {/* Optical Scanner Intake Bar */}
         <form onSubmit={handleScan} className="mt-6 space-y-3">
-          <label className="block text-xs font-mono uppercase tracking-wider text-amber-400 font-semibold">
-            Optical Barcode / QR Scanner Feed
-          </label>
+          <div className="flex items-center justify-between">
+            <label className="block text-xs font-mono uppercase tracking-wider text-amber-400 font-semibold">
+              Scan or Enter Equipment Serial Number
+            </label>
+            {!isFullyDispatched && availableDbSerials.length > 0 && (
+              <button
+                type="button"
+                onClick={handleAutoFillSerials}
+                disabled={isLoading}
+                className="text-[11px] text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+              >
+                + Auto-Assign All In-Stock Serials
+              </button>
+            )}
+          </div>
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Barcode className="w-5 h-5 text-slate-500 absolute left-3.5 top-2.5" />
               <input
                 type="text"
-                placeholder="Scan physical hardware barcode or click an inventory test unit below..."
+                placeholder="Scan barcode or click an in-stock unit below..."
                 value={barcodeInput}
                 onChange={(e) => setBarcodeInput(e.target.value)}
                 disabled={isFullyDispatched || isLoading}
@@ -337,7 +402,7 @@ export const DispatchScanner: React.FC<DispatchScannerProps> = ({
               ) : (
                 <Scan className="w-4 h-4 stroke-[2.5]" />
               )}
-              Register Scan
+              Add Serial
             </button>
           </div>
 
@@ -464,7 +529,7 @@ export const DispatchScanner: React.FC<DispatchScannerProps> = ({
               className="px-5 py-2.5 rounded-lg text-xs font-bold text-slate-950 bg-emerald-400 hover:bg-emerald-300 shadow-lg shadow-emerald-400/20 flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
             >
               <Truck className="w-4 h-4 stroke-[2]" />
-              Seal Manifest & Dispatch Carrier
+              Complete Dispatch & Ship Equipment
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>

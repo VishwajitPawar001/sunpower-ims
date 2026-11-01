@@ -293,7 +293,7 @@ export const SignoffCanvas: React.FC<SignoffCanvasProps> = ({
                 </span>
               </div>
               <h2 className="text-xl font-bold text-white mt-1.5 tracking-tight flex items-center gap-2">
-                Field Commissioning & Customer Sign-Off Terminal
+                System Commissioning & Customer Sign-Off
               </h2>
               {project && (
                 <p className="text-xs text-slate-400 mt-0.5">
@@ -320,7 +320,7 @@ export const SignoffCanvas: React.FC<SignoffCanvasProps> = ({
           <div>
             <div className="text-xs font-mono uppercase tracking-wider text-amber-400 font-semibold mb-3 flex items-center gap-1.5">
               <Gauge className="w-3.5 h-3.5" />
-              1. Electrical Generation Test Diagnostics
+              1. Electrical Safety & Test Readings
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800">
@@ -462,7 +462,7 @@ export const SignoffCanvas: React.FC<SignoffCanvasProps> = ({
             <div className="flex items-center justify-between mb-2">
               <div className="text-xs font-mono uppercase tracking-wider text-amber-400 font-semibold flex items-center gap-1.5">
                 <PenTool className="w-3.5 h-3.5" />
-                4. Customer Sign-on-Glass Proof (Vector SVG Capture)
+                4. Customer Sign-Off Signature
               </div>
               <button
                 type="button"
@@ -510,17 +510,17 @@ export const SignoffCanvas: React.FC<SignoffCanvasProps> = ({
             {isLoading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                Commencing 20-Yr Warranty & Encrypting Signoff...
+                Saving Commissioning Record...
               </>
             ) : commissionedResult ? (
               <>
                 <ShieldCheck className="w-4 h-4" />
-                Sign-Off Record & Warranty Clock Locked
+                Commissioning Completed
               </>
             ) : (
               <>
                 <Upload className="w-4 h-4 stroke-[2.5]" />
-                Authorize Commissioning & Lock 20-Yr Warranty
+                Approve & Complete Commissioning
               </>
             )}
           </button>

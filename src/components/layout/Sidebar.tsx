@@ -38,60 +38,60 @@ interface CommandRailItem {
 const COMMAND_ITEMS: CommandRailItem[] = [
   { 
     id: 'sales-leads', 
-    label: 'Commercial CRM', 
-    code: 'CRM-01',
+    label: 'Leads & CRM', 
+    code: '01',
     allowedRoles: ['SALES', 'DIRECTOR', 'ADMIN'], 
     icon: Building2, 
-    subtext: 'Pipeline & Discovery' 
+    subtext: 'Customer Pipeline' 
   },
   { 
     id: 'surveyor-form', 
-    label: 'Site Feasibility', 
-    code: 'SRV-02',
+    label: 'Site Survey', 
+    code: '02',
     allowedRoles: ['SURVEYOR', 'DIRECTOR', 'ADMIN'], 
     icon: Compass, 
-    subtext: '3D Solar Roof Survey' 
+    subtext: 'Rooftop Feasibility' 
   },
   { 
     id: 'sales-quotes', 
-    label: 'Engineering BOM', 
-    code: 'BOM-03',
+    label: 'Quote & BOM', 
+    code: '03',
     allowedRoles: ['SALES', 'DIRECTOR', 'ADMIN'], 
     icon: Cpu, 
-    subtext: 'System Sizing & Pricing' 
+    subtext: 'Sizing & Pricing' 
   },
   { 
     id: 'warehouse-dispatch', 
-    label: 'Warehouse Dispatch', 
-    code: 'DSP-04',
+    label: 'Inventory Dispatch', 
+    code: '04',
     allowedRoles: ['WAREHOUSE', 'DIRECTOR', 'ADMIN'], 
     icon: Boxes, 
-    subtext: 'Barcode & Serial Scanner',
+    subtext: 'Hardware Serials',
     hasLivePulse: true
   },
   { 
     id: 'technician-signoff', 
-    label: 'Field Commissioning', 
-    code: 'SIG-05',
+    label: 'Commissioning', 
+    code: '05',
     allowedRoles: ['TECHNICIAN', 'DIRECTOR', 'ADMIN'], 
     icon: ClipboardCheck, 
     subtext: 'Electrical Sign-off' 
   },
   { 
     id: 'director-margins', 
-    label: 'Margin & P&L Audit', 
-    code: 'FIN-06',
+    label: 'Margins & P&L', 
+    code: '06',
     allowedRoles: ['DIRECTOR', 'ADMIN'], 
     icon: TrendingUp, 
-    subtext: 'Executive Unit Economics' 
+    subtext: 'Executive Financials' 
   },
   { 
     id: 'support-tickets', 
-    label: 'Service Desk & SLA', 
-    code: 'SUP-07',
+    label: 'Support Desk', 
+    code: '07',
     allowedRoles: ['SUPPORT', 'SALES', 'DIRECTOR', 'ADMIN'], 
     icon: Headphones, 
-    subtext: 'Post-Install Support' 
+    subtext: 'Warranty & Tickets' 
   },
 ];
 

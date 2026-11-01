@@ -9,7 +9,7 @@ export const customerLeadSchema = z
     installationAddress: z.string().min(5).optional(),
     address: z.string().min(5).optional(),
     capacityKw: z.coerce.number().positive().max(100),
-    systemType: z.enum(['ON_GRID', 'OFF_GRID']),
+    systemType: z.enum(['ON_GRID', 'OFF_GRID', 'HYBRID']),
   })
   .refine((data) => !!(data.fullName || data.customerName), {
     message: 'Customer name is required',
@@ -64,7 +64,7 @@ export const quoteGenerateSchema = z
     marginMarkupPercent: z.coerce.number().min(0).max(100).default(15),
     agreedPrice: z.coerce.number().positive().optional(),
     capacityKw: z.coerce.number().positive().optional(),
-    systemType: z.enum(['ON_GRID', 'OFF_GRID']).optional(),
+    systemType: z.enum(['ON_GRID', 'OFF_GRID', 'HYBRID']).optional(),
   });
 
 export const orderConfirmSchema = z

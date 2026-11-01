@@ -1,4 +1,4 @@
-import { ProjectLead, SiteSurveyInput } from '@/types/solar';
+import { ProjectLead, SiteSurveyInput, SystemType } from '@/types/solar';
 
 export interface ApiErrorPayload {
   code: string;
@@ -83,7 +83,7 @@ export async function createLeadApi(data: {
   phone: string;
   address: string;
   capacityKw: number;
-  systemType: 'ON_GRID' | 'OFF_GRID';
+  systemType: SystemType;
   email?: string;
 }): Promise<ProjectLead> {
   return request<ProjectLead>('/api/leads', {
@@ -95,7 +95,7 @@ export async function createLeadApi(data: {
 export async function generateQuoteApi(data: {
   projectId: string;
   capacityKw?: number;
-  systemType?: 'ON_GRID' | 'OFF_GRID';
+  systemType?: SystemType;
   agreedPrice?: number;
   marginMarkupPercent?: number;
 }): Promise<{ quoteId: string; projectStatus: string; project?: unknown; quote?: unknown }> {

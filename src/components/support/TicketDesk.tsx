@@ -211,13 +211,13 @@ export const TicketDesk: React.FC<TicketDeskProps> = ({
             </div>
             <div>
               <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-                Service Desk & 20-Year SLA Incident Terminal
+                Service Desk & Warranty Management
                 <span className="text-[10px] font-mono bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700 font-normal">
                   STAGE 07
                 </span>
               </h1>
               <p className="text-xs text-slate-400">
-                Post-commissioning warranty lifecycle, inverter telemetry faults, and dispatch tickets
+                Manage warranty claims, field incidents, and inverter telemetry alerts
               </p>
             </div>
           </div>
@@ -239,7 +239,7 @@ export const TicketDesk: React.FC<TicketDeskProps> = ({
             className="flex items-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold px-4 py-2.5 rounded-lg text-xs shadow-lg shadow-amber-500/20 transition-all cursor-pointer active:scale-95"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />
-            Log SLA Incident Ticket
+            + Create Support Ticket
           </button>
         </div>
       </div>
@@ -542,7 +542,7 @@ export const TicketDesk: React.FC<TicketDeskProps> = ({
                   className="px-4 py-2 text-xs font-bold text-slate-950 bg-amber-500 hover:bg-amber-400 rounded-lg shadow-md shadow-amber-500/20 flex items-center gap-1.5 disabled:opacity-50 cursor-pointer transition-all active:scale-95"
                 >
                   {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  Register SLA Incident
+                  Create Ticket
                 </button>
               </div>
             </form>

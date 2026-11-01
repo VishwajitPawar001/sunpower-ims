@@ -81,13 +81,13 @@ export const MarginDashboard: React.FC = () => {
             </div>
             <div>
               <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-                Executive Margin Audit & Financial Telemetry
+                Financials & Profit Margins
                 <span className="text-[10px] font-mono bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700 font-normal">
                   STAGE 06
                 </span>
               </h1>
               <p className="text-xs text-slate-400">
-                Unit economics, contracted P&L margins, and real-time ledger auditing
+                Real-time contract revenues, equipment costs, and company profit margins
               </p>
             </div>
           </div>
@@ -97,7 +97,7 @@ export const MarginDashboard: React.FC = () => {
           {isLoading ? (
             <span className="text-xs font-mono text-slate-400 flex items-center gap-1.5">
               <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
-              Syncing P&L Ledger...
+              Syncing Financials...
             </span>
           ) : (
             <span
@@ -108,7 +108,7 @@ export const MarginDashboard: React.FC = () => {
               }`}
             >
               <span className={`w-2 h-2 rounded-full ${isLiveApi ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
-              {isLiveApi ? 'LEDGER: LIVE API SYNC' : 'LEDGER: INITIALIZING'}
+              {isLiveApi ? 'LIVE DATA SYNC' : 'INITIALIZING'}
             </span>
           )}
         </div>

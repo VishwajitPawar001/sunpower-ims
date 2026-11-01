@@ -215,11 +215,11 @@ export default function LoginPage() {
                 onChange={(e) => setRememberMe(e.target.checked)}
                 className="w-3.5 h-3.5 rounded bg-slate-900 border-slate-700 text-amber-500 focus:ring-amber-500"
               />
-              <span className="text-[11px] text-slate-400">Remember node</span>
+              <span className="text-[11px] text-slate-400">Remember me</span>
             </label>
 
-            <span className="text-[11px] text-amber-400 hover:underline cursor-pointer font-mono">
-              Reset Keycard?
+            <span className="text-[11px] text-amber-400 hover:underline cursor-pointer">
+              Forgot Password?
             </span>
           </div>
 
@@ -232,11 +232,11 @@ export default function LoginPage() {
             {isLoading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                Validating Node Session...
+                Signing In...
               </>
             ) : (
               <>
-                Authorize & Launch Workspace
+                Sign In to Dashboard
                 <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
               </>
             )}
@@ -246,8 +246,8 @@ export default function LoginPage() {
         {/* Quick Demo Persona Switcher */}
         <div className="mt-6 pt-5 border-t border-slate-800">
           <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono mb-2.5">
-            <span className="flex items-center gap-1 text-amber-400">
-              <Zap className="w-3.5 h-3.5" /> Demo Keycards:
+            <span className="flex items-center gap-1 text-amber-400 font-semibold font-sans">
+              <Zap className="w-3.5 h-3.5 text-amber-400" /> Quick Sign-In by Role:
             </span>
             <span className="text-slate-500">1-click autofill</span>
           </div>

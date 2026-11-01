@@ -25,7 +25,8 @@ import {
   Pause, 
   Zap,
   LogOut,
-  FolderOpen
+  FolderOpen,
+  Headphones
 } from 'lucide-react';
 
 const subscribe = () => () => {};
@@ -41,12 +42,13 @@ function mapToUserRole(roleStr: string | null): UserRole {
 }
 
 const STAGES = [
-  { id: 'sales-leads', label: '1. Commercial CRM', allowedRoles: ['SALES', 'DIRECTOR'], icon: Building2 },
-  { id: 'surveyor-form', label: '2. Site Feasibility', allowedRoles: ['SURVEYOR', 'DIRECTOR'], icon: Compass },
-  { id: 'sales-quotes', label: '3. Engineering BOM', allowedRoles: ['SALES', 'DIRECTOR'], icon: Cpu },
-  { id: 'warehouse-dispatch', label: '4. Warehouse Dispatch', allowedRoles: ['WAREHOUSE', 'DIRECTOR'], icon: Boxes },
-  { id: 'technician-signoff', label: '5. Field Commissioning', allowedRoles: ['TECHNICIAN', 'DIRECTOR'], icon: ClipboardCheck },
-  { id: 'director-margins', label: '6. Margin & P&L Audit', allowedRoles: ['DIRECTOR'], icon: TrendingUp },
+  { id: 'sales-leads', label: '1. Leads & CRM', allowedRoles: ['SALES', 'DIRECTOR'], icon: Building2 },
+  { id: 'surveyor-form', label: '2. Site Survey', allowedRoles: ['SURVEYOR', 'DIRECTOR'], icon: Compass },
+  { id: 'sales-quotes', label: '3. Quote & BOM', allowedRoles: ['SALES', 'DIRECTOR'], icon: Cpu },
+  { id: 'warehouse-dispatch', label: '4. Dispatch', allowedRoles: ['WAREHOUSE', 'DIRECTOR'], icon: Boxes },
+  { id: 'technician-signoff', label: '5. Commissioning', allowedRoles: ['TECHNICIAN', 'DIRECTOR'], icon: ClipboardCheck },
+  { id: 'director-margins', label: '6. Margins & P&L', allowedRoles: ['DIRECTOR'], icon: TrendingUp },
+  { id: 'support-tickets', label: '7. Service Desk', allowedRoles: ['SUPPORT', 'SALES', 'DIRECTOR'], icon: Headphones },
 ];
 
 export default function DashboardPage() {
@@ -275,12 +277,12 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Right HUD Controls: Tour, Theme, Operator Profile & Logout */}
+            {/* Right Controls: Auto-Tour, Theme, Profile & Logout */}
             <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => setIsAutoTouring(!isAutoTouring)}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded text-[11px] font-sans font-bold tracking-wider transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-[11px] font-sans font-semibold tracking-wide transition-all cursor-pointer ${
                   isAutoTouring
                     ? 'bg-rose-500 text-white animate-pulse shadow-md shadow-rose-500/30'
                     : isDark
@@ -289,13 +291,13 @@ export default function DashboardPage() {
                 }`}
               >
                 {isAutoTouring ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3 fill-current" />}
-                {isAutoTouring ? 'PAUSE AUTO-TOUR' : 'DEMO AUTO-TOUR'}
+                {isAutoTouring ? 'Pause Tour' : 'Auto Tour'}
               </button>
 
               <button
                 type="button"
                 onClick={() => setTheme(isDark ? 'daylight' : 'cockpit')}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded border text-[11px] font-sans font-medium transition-colors cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-md border text-[11px] font-sans font-medium transition-colors cursor-pointer ${
                   isDark 
                     ? 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800' 
                     : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100'
@@ -304,26 +306,26 @@ export default function DashboardPage() {
                 {isDark ? (
                   <>
                     <Sun className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Daylight Field</span>
+                    <span>Light Mode</span>
                   </>
                 ) : (
                   <>
                     <Moon className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>Cockpit Dark</span>
+                    <span>Dark Mode</span>
                   </>
                 )}
               </button>
 
               <div className="flex items-center gap-3 pl-3 border-l border-slate-800">
                 <div className="text-right hidden sm:block">
-                  <span className="text-slate-400 font-sans text-[10px] block leading-none">Operator</span>
+                  <span className="text-slate-400 font-sans text-[10px] block leading-none">Signed in as</span>
                   <span className="font-semibold font-sans text-xs text-amber-400">{userName}</span>
                 </div>
 
                 <button
                   type="button"
                   onClick={handleLogout}
-                  title="Sign out of current account"
+                  title="Sign out"
                   className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-sans font-semibold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 transition-colors cursor-pointer"
                 >
                   <LogOut className="w-3.5 h-3.5" />
@@ -335,14 +337,14 @@ export default function DashboardPage() {
 
           {/* EPC Pipeline & Assigned Project Selector */}
           <div className="px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            {/* Customer Dossier Selector: Dynamically populated from Database */}
+            {/* Customer Project Selector */}
             <div className="flex items-center gap-3 shrink-0">
               <div className={`px-3.5 py-1.5 rounded-lg border flex flex-col ${
                 isDark ? 'bg-slate-900/90 border-slate-800' : 'bg-slate-50 border-slate-200'
               }`}>
-                <div className="flex items-center gap-1.5 text-[10px] text-slate-400 uppercase tracking-widest font-mono">
-                  <FolderOpen className="w-3 h-3 text-amber-400" />
-                  <span>Live Database Dossier</span>
+                <div className="flex items-center gap-1.5 text-[10px] text-slate-400 uppercase tracking-wider font-sans font-semibold">
+                  <FolderOpen className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Selected Project:</span>
                 </div>
                 
                 <select
@@ -356,7 +358,7 @@ export default function DashboardPage() {
                   }`}
                 >
                   {projects.length === 0 ? (
-                    <option value="">Connecting database ledger...</option>
+                    <option value="">Loading projects...</option>
                   ) : (
                     projects.map((lead) => (
                       <option 
@@ -364,7 +366,7 @@ export default function DashboardPage() {
                         value={lead.id}
                         className={isDark ? 'bg-[#0B111E] text-white font-sans' : 'bg-white text-slate-800 font-sans'}
                       >
-                        {lead.projectCode} • {lead.customerName} ({lead.capacityKw} kWp - {lead.status})
+                        {lead.projectCode} • {lead.customerName} ({lead.capacityKw} kW - {lead.status})
                       </option>
                     ))
                   )}
@@ -467,5 +469,6 @@ export default function DashboardPage() {
         </main>
       </div>
     </div>
-  );
+
+);
 }

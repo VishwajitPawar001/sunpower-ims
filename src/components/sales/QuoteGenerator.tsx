@@ -83,7 +83,7 @@ export const QuoteGenerator: React.FC<QuoteGeneratorProps> = ({
       },
     ];
 
-    if (systemType === 'OFF_GRID') {
+    if (systemType === 'OFF_GRID' || systemType === 'HYBRID') {
       const batteryCount = selectedCapacity >= 4 ? 2 : 1;
       items.push({
         sku: 'BAT-LFP-48-100',
@@ -161,7 +161,7 @@ export const QuoteGenerator: React.FC<QuoteGeneratorProps> = ({
                 </span>
               </div>
               <h2 className="text-xl font-bold text-white mt-1.5 tracking-tight flex items-center gap-2">
-                Engineering BOM & Dynamic Sizing Engine
+                System Sizing & Quotation Generator
                 <span className="text-[10px] font-mono bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700 font-normal">
                   STAGE 03
                 </span>
@@ -179,7 +179,7 @@ export const QuoteGenerator: React.FC<QuoteGeneratorProps> = ({
               ₹{quotePrice.toLocaleString('en-IN')}
             </div>
             <div className="text-[11px] text-slate-400 font-mono mt-0.5">
-              Client Valuation (Excl. 18% GST)
+              Total Project Quote (Excl. 18% GST)
             </div>
           </div>
         </div>
@@ -215,12 +215,12 @@ export const QuoteGenerator: React.FC<QuoteGeneratorProps> = ({
             <label className="block text-xs font-semibold text-slate-300 mb-2">
               Inverter & Storage Topology *
             </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
                 disabled={isLocked || isLoading}
                 onClick={() => setSystemType('ON_GRID')}
-                className={`py-2 px-3 rounded-lg text-xs font-semibold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                className={`py-2 px-2.5 rounded-lg text-xs font-semibold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                   systemType === 'ON_GRID'
                     ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md shadow-amber-500/25'
                     : 'bg-slate-950/70 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800'
@@ -232,8 +232,21 @@ export const QuoteGenerator: React.FC<QuoteGeneratorProps> = ({
               <button
                 type="button"
                 disabled={isLocked || isLoading}
+                onClick={() => setSystemType('HYBRID')}
+                className={`py-2 px-2.5 rounded-lg text-xs font-semibold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  systemType === 'HYBRID'
+                    ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md shadow-amber-500/25'
+                    : 'bg-slate-950/70 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                <Layers className={`w-3.5 h-3.5 ${systemType === 'HYBRID' ? 'text-slate-950' : 'text-cyan-400'}`} />
+                Grid Hybrid
+              </button>
+              <button
+                type="button"
+                disabled={isLocked || isLoading}
                 onClick={() => setSystemType('OFF_GRID')}
-                className={`py-2 px-3 rounded-lg text-xs font-semibold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                className={`py-2 px-2.5 rounded-lg text-xs font-semibold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                   systemType === 'OFF_GRID'
                     ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md shadow-amber-500/25'
                     : 'bg-slate-950/70 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800'
@@ -352,8 +365,8 @@ export const QuoteGenerator: React.FC<QuoteGeneratorProps> = ({
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
             <span>
               {isLocked
-                ? 'BOM locked in database. State transitioned to [QUOTE_ISSUED].'
-                : 'Locking generates official proposal and advances lifecycle to Hardware Dispatch.'}
+                ? 'Quote approved in database. Project transitioned to [QUOTE_ISSUED].'
+                : 'Issuing this quote updates project state and advances workflow to Hardware Dispatch.'}
             </span>
           </div>
 
@@ -370,17 +383,17 @@ export const QuoteGenerator: React.FC<QuoteGeneratorProps> = ({
             {isLoading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Encrypting & Issuing Proposal...
+                Generating Quote...
               </>
             ) : isLocked ? (
               <>
                 <ShieldCheck className="w-4 h-4" />
-                Quote Issued & BOM Locked
+                Quote Issued
               </>
             ) : (
               <>
                 <FileCheck className="w-4 h-4" />
-                Lock BOM & Issue Official Quote
+                Approve & Issue Quote
               </>
             )}
           </button>

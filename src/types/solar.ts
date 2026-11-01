@@ -18,7 +18,7 @@ export type ProjectStatus =
   | 'COMMISSIONED'
   | 'COMPLETED';
 
-export type SystemType = 'ON_GRID' | 'OFF_GRID';
+export type SystemType = 'ON_GRID' | 'OFF_GRID' | 'HYBRID';
 
 export interface ProjectLead {
   id: string;
