@@ -100,7 +100,15 @@ export const commissioningSignSchema = z
 
 export const updateTicketSchema = z
   .object({
-    status: z.enum(['OPEN', 'IN_PROGRESS', 'INVESTIGATING', 'PARTS_REPLACED', 'RESOLVED', 'CLOSED']),
+    status: z.enum([
+  "OPEN",
+  "INVESTIGATING",
+  "PARTS_REPLACED",
+  "RESOLVED",
+  "CLOSED",
+  ]),
+    description: z.string().min(5, "Description must be at least 5 characters").optional(),
+    status: z.enum(['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED']),
     description: z
       .string()
       .min(5, 'Description must be at least 5 characters')

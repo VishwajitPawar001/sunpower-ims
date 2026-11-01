@@ -1,113 +1,125 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { supportTicketSchema } from "@/lib/validations";
-import { handleApiError, apiSuccess, ApiError } from "@/lib/errorHandler";
 import { requireRole } from "@/lib/auth";
+import { handleApiError, apiSuccess, ApiError } from "@/lib/errorHandler";
+import { BillingType, TicketStatus, UserRole } from "@prisma/client";
 
-export async function POST(req: NextRequest) {
+// GET /api/tickets - List support tickets with filter and search capability
+export async function GET(req: NextRequest) {
   try {
-    requireRole(req, ["ADMIN", "DIRECTOR", "SUPPORT", "SALES"]);
-    const body = await req.json();
-    const valid = supportTicketSchema.parse(body);
+    requireRole(req, [UserRole.SUPPORT, UserRole.LEAD_TECHNICIAN, UserRole.ADMIN, UserRole.DIRECTOR]);
 
-    let targetProjectId = valid.projectId;
-    let serialId: string | null = null;
-    let isCovered = true;
+    const { searchParams } = new URL(req.url);
+    const status = searchParams.get("status") as TicketStatus | null;
+    const search = searchParams.get("search");
 
-    if (valid.serialNumber) {
-      const serial = await prisma.serialRegistry.findUnique({
-        where: { serialNumber: valid.serialNumber },
-      });
+    const whereClause: Record<string, unknown> = {};
 
-      if (serial) {
-        serialId = serial.id;
-        if (!targetProjectId && serial.projectId) {
-          targetProjectId = serial.projectId;
-        }
-        const now = new Date();
-        isCovered = serial.warrantyEndDate !== null && now <= serial.warrantyEndDate;
-      }
+    if (status) {
+      whereClause.status = status;
     }
 
-    if (!targetProjectId) {
-      const firstProject = await prisma.project.findFirst({
-        orderBy: { createdAt: "desc" },
-      });
-      if (!firstProject) {
-        throw new ApiError(404, "NOT_FOUND", "No project found to associate with support ticket.");
-      }
-      targetProjectId = firstProject.id;
+    if (search) {
+      whereClause.OR = [
+        { ticketCode: { contains: search, mode: "insensitive" } },
+        { faultySerialNumber: { contains: search, mode: "insensitive" } },
+        { customer: { phone: { contains: search } } },
+        { customer: { fullName: { contains: search, mode: "insensitive" } } },
+        { project: { projectCode: { contains: search, mode: "insensitive" } } },
+      ];
     }
 
-    const ticketNumber = `TCK-${Date.now().toString().slice(-6)}`;
-
-    const ticket = await prisma.supportTicket.create({
-      data: {
-        ticketNumber,
-        projectId: targetProjectId,
-        serialRegistryId: serialId,
-        reportedFaultCode: valid.reportedFaultCode || "FAULT-GENERIC",
-        description: valid.description,
-        isCoveredUnderWarranty: isCovered,
-        billableAmount: isCovered ? 0.0 : 1500.0,
-        status: "OPEN",
-      },
+    const tickets = await prisma.supportTicket.findMany({
+      where: whereClause,
       include: {
+        customer: true,
         project: {
-          include: { customer: true },
+          include: {
+            packageTemplate: true,
+            dispatchedSerials: { include: { stockItem: true } },
+          },
+        },
+        assignedTo: {
+          select: { fullName: true, employeeCode: true, phone: true },
         },
       },
+      orderBy: { createdAt: "desc" },
     });
 
-    return apiSuccess(ticket, 201);
+    return apiSuccess(tickets);
   } catch (error) {
     return handleApiError(error);
   }
 }
 
-export async function GET(req: NextRequest) {
+// POST /api/tickets - Intake support ticket with automatic warranty evaluation
+export async function POST(req: NextRequest) {
   try {
-    requireRole(req, ["ADMIN", "DIRECTOR", "SUPPORT", "TECHNICIAN", "SALES"]);
+    requireRole(req, [UserRole.SUPPORT, UserRole.ADMIN, UserRole.DIRECTOR]);
 
-    const tickets = await prisma.supportTicket.findMany({
+    const body = await req.json();
+    const {
+      projectId,
+      reportedIssue,
+      faultySerialNumber,
+      assignedToId,
+    } = body;
+
+    if (!projectId || !reportedIssue) {
+      throw new ApiError(400, "BAD_REQUEST", "projectId and reportedIssue are required.");
+    }
+
+    const project = await prisma.project.findUnique({
+      where: { id: Number(projectId) },
+      include: { customer: true, dispatchedSerials: true },
+    });
+
+    if (!project) {
+      throw new ApiError(404, "NOT_FOUND", "Project not found.");
+    }
+
+    // Determine warranty coverage automatically
+    let billingType = BillingType.WARRANTY_FREE;
+
+    if (faultySerialNumber) {
+      const serial = await prisma.serialRegistry.findUnique({
+        where: { serialNumber: String(faultySerialNumber).trim() },
+      });
+
+      if (serial && serial.warrantyEndDate) {
+        const isExpired = new Date() > new Date(serial.warrantyEndDate);
+        if (isExpired) {
+          billingType = BillingType.BILLABLE;
+        }
+      }
+    }
+
+    // Generate sequential ticket code: TCK-#####
+    const ticketCount = await prisma.supportTicket.count();
+    const nextTicketNum = String(ticketCount + 1).padStart(5, "0");
+    const ticketCode = `TCK-${nextTicketNum}`;
+
+    const newTicket = await prisma.supportTicket.create({
+      data: {
+        ticketCode,
+        projectId: project.id,
+        customerId: project.customerId,
+        assignedToId: assignedToId ? Number(assignedToId) : null,
+        status: TicketStatus.OPEN,
+        billingType,
+        reportedIssue: String(reportedIssue).trim(),
+        faultySerialNumber: faultySerialNumber ? String(faultySerialNumber).trim() : null,
+      },
       include: {
-        project: {
-          select: {
-            id: true,
-            projectCode: true,
-            status: true,
-            customer: {
-              select: {
-                fullName: true,
-              },
-            },
-          },
+        customer: true,
+        project: true,
+        assignedTo: {
+          select: { fullName: true, employeeCode: true },
         },
       },
-      orderBy: {
-        createdAt: "desc",
-      },
     });
 
-    const mappedTickets = tickets.map((t) => ({
-      id: t.id,
-      ticketCode: t.ticketNumber,
-      projectId: t.projectId,
-      projectCode: t.project?.projectCode || "PRJ-UNKNOWN",
-      customerName: t.project?.customer?.fullName || "Valued Customer",
-      issueDescription: t.description,
-      priority: t.reportedFaultCode.includes("03") || t.reportedFaultCode.includes("ERR") ? "HIGH" : "LOW",
-      status: t.status,
-      billableAmount: Number(t.billableAmount),
-      isCoveredUnderWarranty: t.isCoveredUnderWarranty,
-      reportedFaultCode: t.reportedFaultCode,
-      createdAt: t.createdAt.toISOString().split("T")[0],
-    }));
-
-    return apiSuccess({
-      count: mappedTickets.length,
-      tickets: mappedTickets,
-    });
+    return apiSuccess(newTicket, 201);
   } catch (error) {
     return handleApiError(error);
   }

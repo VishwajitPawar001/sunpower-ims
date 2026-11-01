@@ -1,106 +1,132 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { customerLeadSchema } from "@/lib/validations";
-import { handleApiError, apiSuccess } from "@/lib/errorHandler";
 import { requireRole } from "@/lib/auth";
+import { handleApiError, apiSuccess, ApiError } from "@/lib/errorHandler";
+import { ProjectStatus, SystemType, UserRole } from "@prisma/client";
 
-export async function POST(req: NextRequest) {
+// GET /api/leads - Retrieve pipeline leads with customer details
+export async function GET(req: NextRequest) {
   try {
-    requireRole(req, ["ADMIN", "DIRECTOR", "SALES"]);
-    const body = await req.json();
-    const validData = customerLeadSchema.parse(body);
+    requireRole(req, [UserRole.SALES, UserRole.ADMIN, UserRole.DIRECTOR, UserRole.SURVEYOR]);
 
-    const fullName = (validData.fullName || validData.customerName || "Solar Client").trim();
-    const address = (validData.installationAddress || validData.address || "Installation Site").trim();
-
-    const result = await prisma.$transaction(async (tx) => {
-      let customer = await tx.customer.findUnique({
-        where: { phone: validData.phone },
-      });
-
-      if (!customer) {
-        customer = await tx.customer.create({
-          data: {
-            fullName,
-            phone: validData.phone,
-            email: validData.email || null,
-            installationAddress: address,
+    const leads = await prisma.project.findMany({
+      include: {
+        customer: true,
+        packageTemplate: true,
+        siteSurvey: {
+          include: {
+            surveyor: {
+              select: { fullName: true, employeeCode: true },
+            },
           },
-        });
-      } else {
-        customer = await tx.customer.update({
-          where: { id: customer.id },
-          data: {
-            fullName,
-            installationAddress: address,
-            ...(validData.email ? { email: validData.email } : {}),
-          },
-        });
-      }
-
-      const count = await tx.project.count();
-      const projectCode = `PRJ-${new Date().getFullYear()}-${String(count + 1).padStart(3, "0")}`;
-
-      const project = await tx.project.create({
-        data: {
-          projectCode,
-          customerId: customer.id,
-          capacityKw: validData.capacityKw,
-          systemType: validData.systemType,
-          status: "LEAD_RECEIVED",
-          agreedPrice: null,
         },
-        include: {
-          customer: true,
-        },
-      });
-
-      return {
-        id: project.id,
-        projectCode: project.projectCode,
-        customerName: customer.fullName,
-        phone: customer.phone,
-        address: customer.installationAddress,
-        capacityKw: Number(project.capacityKw),
-        systemType: project.systemType,
-        status: project.status,
-        agreedPrice: 0,
-        createdAt: project.createdAt.toISOString().split("T")[0],
-      };
+      },
+      orderBy: { createdAt: "desc" },
     });
 
-    return apiSuccess(result, 201);
+    return apiSuccess(leads);
   } catch (error) {
     return handleApiError(error);
   }
 }
 
-export async function GET(req: NextRequest) {
+// POST /api/leads - Create or attach lead with phone deduplication
+export async function POST(req: NextRequest) {
   try {
-    requireRole(req, ["ADMIN", "DIRECTOR", "SALES", "SURVEYOR", "WAREHOUSE", "TECHNICIAN", "SUPPORT"]);
-    const projects = await prisma.project.findMany({
-      include: {
-        customer: true,
-        siteSurvey: true,
-      },
-      orderBy: { createdAt: "desc" },
+    requireRole(req, [UserRole.SALES, UserRole.ADMIN, UserRole.DIRECTOR]);
+
+    const body = await req.json();
+    const {
+      fullName,
+      phone,
+      email,
+      installationAddress,
+      city,
+      state,
+      pincode,
+      systemCapacityKw,
+      systemType = SystemType.ON_GRID,
+      consumerAccountNumber,
+      sanctionedLoadKw,
+      monthlyPowerBill,
+      packageTemplateId,
+    } = body;
+
+    if (!fullName || !phone || !installationAddress || !systemCapacityKw) {
+      throw new ApiError(400, "BAD_REQUEST", "Full name, phone, installation address, and capacity (kW) are required.");
+    }
+
+    const cleanPhone = String(phone).replace(/\D/g, "");
+    if (cleanPhone.length < 10) {
+      throw new ApiError(400, "BAD_REQUEST", "Valid 10-digit phone number is required.");
+    }
+
+    // Run atomically inside a transaction
+    const newProject = await prisma.$transaction(async (tx) => {
+      // 1. Phone Deduplication Check
+      let customer = await tx.customer.findUnique({
+        where: { phone: cleanPhone },
+      });
+
+      if (!customer) {
+        // Generate sequential CUST-#####
+        const customerCount = await tx.customer.count();
+        const nextCustomerNum = String(customerCount + 1).padStart(5, "0");
+        const customerCode = `CUST-${nextCustomerNum}`;
+
+        customer = await tx.customer.create({
+          data: {
+            customerCode,
+            fullName: fullName.trim(),
+            phone: cleanPhone,
+            email: email ? email.trim() : null,
+            installationAddress: installationAddress.trim(),
+            city: city ? city.trim() : "Pune",
+            state: state ? state.trim() : "Maharashtra",
+            pincode: pincode ? String(pincode).trim() : "411001",
+          },
+        });
+      }
+
+      // 2. Generate sequential PRJ-YYYY-#####
+      const currentYear = new Date().getFullYear();
+      const projectCount = await tx.project.count();
+      const nextProjectNum = String(projectCount + 1).padStart(5, "0");
+      const projectCode = `PRJ-${currentYear}-${nextProjectNum}`;
+
+      // 3. Resolve default package pricing if selected
+      let totalQuotedPrice = 0;
+      if (packageTemplateId) {
+        const pkg = await tx.packageTemplate.findUnique({
+          where: { id: Number(packageTemplateId) },
+        });
+        if (pkg) {
+          totalQuotedPrice = Number(pkg.defaultPrice);
+        }
+      }
+
+      // 4. Create Project record
+      return await tx.project.create({
+        data: {
+          projectCode,
+          customerId: customer.id,
+          packageTemplateId: packageTemplateId ? Number(packageTemplateId) : null,
+          systemCapacityKw: Number(systemCapacityKw),
+          systemType,
+          status: ProjectStatus.LEAD_RECEIVED,
+          consumerAccountNumber: consumerAccountNumber || null,
+          sanctionedLoadKw: sanctionedLoadKw ? Number(sanctionedLoadKw) : null,
+          monthlyPowerBill: monthlyPowerBill ? Number(monthlyPowerBill) : null,
+          totalQuotedPrice,
+        },
+        include: {
+          customer: true,
+          packageTemplate: true,
+        },
+      });
     });
 
-    const mappedLeads = projects.map((p) => ({
-      id: p.id,
-      projectCode: p.projectCode,
-      customerName: p.customer.fullName,
-      phone: p.customer.phone,
-      address: p.customer.installationAddress,
-      capacityKw: Number(p.capacityKw),
-      systemType: p.systemType,
-      status: p.status,
-      agreedPrice: p.agreedPrice ? Number(p.agreedPrice) : 0,
-      createdAt: p.createdAt.toISOString().split("T")[0],
-      siteSurvey: p.siteSurvey,
-    }));
-
-    return apiSuccess(mappedLeads);
+    return apiSuccess(newProject, 201);
   } catch (error) {
     return handleApiError(error);
   }

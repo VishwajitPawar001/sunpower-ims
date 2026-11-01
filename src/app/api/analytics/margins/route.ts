@@ -1,136 +1,131 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { handleApiError, apiSuccess } from "@/lib/errorHandler";
 import { requireRole } from "@/lib/auth";
+import { handleApiError, apiSuccess } from "@/lib/errorHandler";
+import { ProjectStatus, TicketStatus, UserRole } from "@prisma/client";
 
 export async function GET(req: NextRequest) {
   try {
-    requireRole(req, ["ADMIN", "DIRECTOR", "SALES"]);
+    requireRole(req, [UserRole.DIRECTOR, UserRole.ADMIN]);
 
-    // 1. Fetch all projects with customers and surveys
+    // 1. Fetch all projects with customers, packages, and dispatched components
     const projects = await prisma.project.findMany({
       include: {
         customer: true,
-        siteSurvey: true,
-        commissioningRecord: true,
+        packageTemplate: true,
+        dispatchedSerials: {
+          include: { stockItem: true },
+        },
+        installationRecord: true,
       },
       orderBy: { createdAt: "desc" },
     });
 
-    // 2. Fetch stock catalog to calculate benchmark costs
-    const stockItems = await prisma.stockItem.findMany();
-    const panelUnitCost = Number(stockItems.find((s) => s.category === "PANEL")?.unitCost ?? 11500);
-    const inverterUnitCost = Number(stockItems.find((s) => s.category === "INVERTER")?.unitCost ?? 38000);
-    const structureUnitCost = Number(stockItems.find((s) => s.category === "STRUCTURE")?.unitCost ?? 1800);
-    const balanceCost = 15000;
+    // 2. Fetch all staff to calculate fixed monthly payroll overhead
+    const staffMembers = await prisma.user.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        employeeCode: true,
+        fullName: true,
+        role: true,
+        monthlySalary: true,
+      },
+    });
 
-    let totalRevenue = 0;
-    let totalEstimatedBOMCost = 0;
-    let totalLaborCost = 0;
-    let totalOverheadCost = 0;
+    const totalMonthlyPayroll = staffMembers.reduce(
+      (sum, emp) => sum + Number(emp.monthlySalary),
+      0
+    );
 
-    const pipelineDistribution = {
-      leadReceived: 0,
-      surveyPending: 0,
-      surveyApproved: 0,
-      quoteIssued: 0,
-      orderConfirmed: 0,
-      dispatched: 0,
-      commissioned: 0,
-      completed: 0,
-      rejected: 0,
-    };
+    // 3. Fetch open support tickets and pending RMA issues
+    const openTicketsCount = await prisma.supportTicket.count({
+      where: {
+        status: { in: [TicketStatus.OPEN, TicketStatus.IN_PROGRESS] },
+      },
+    });
 
-    const auditedProjects = [];
+    // 4. Calculate P&L and Margin per Project
+    let totalRevenueQuoted = 0;
+    let totalCollectedSoFar = 0;
+    let totalDirectCostBOM = 0;
+    let totalFreightAndCivil = 0;
+    let totalDirectLabor = 0;
 
-    for (const project of projects) {
-      // Map project status to distribution key
-      switch (project.status) {
-        case "LEAD_RECEIVED":
-          pipelineDistribution.leadReceived++;
-          break;
-        case "SURVEY_PENDING":
-          pipelineDistribution.surveyPending++;
-          break;
-        case "SURVEY_APPROVED":
-          pipelineDistribution.surveyApproved++;
-          break;
-        case "QUOTE_ISSUED":
-          pipelineDistribution.quoteIssued++;
-          break;
-        case "ORDER_CONFIRMED":
-          pipelineDistribution.orderConfirmed++;
-          break;
-        case "DISPATCHED":
-          pipelineDistribution.dispatched++;
-          break;
-        case "COMMISSIONED":
-          pipelineDistribution.commissioned++;
-          break;
-        case "COMPLETED":
-          pipelineDistribution.completed++;
-          break;
-        case "REJECTED":
-          pipelineDistribution.rejected++;
-          break;
+    const projectFinancials = projects.map((prj) => {
+      const quoted = Number(prj.totalQuotedPrice);
+      const bookingAdvance = Number(prj.bookingAdvancePaid);
+      const dispatchPayment = Number(prj.dispatchPaymentPaid);
+      const finalBalance = Number(prj.finalBalancePaid);
+      const collected = bookingAdvance + dispatchPayment + finalBalance;
+      const outstandingReceivable = quoted - collected;
+
+      // Base hardware cost: sum of scanned serial unit costs or default package cost
+      let hardwareCost = 0;
+      if (prj.dispatchedSerials && prj.dispatchedSerials.length > 0) {
+        hardwareCost = prj.dispatchedSerials.reduce(
+          (sum, s) => sum + Number(s.stockItem?.unitCost || 0),
+          0
+        );
+      } else if (prj.packageTemplate) {
+        hardwareCost = Number(prj.packageTemplate.baseHardwareCost);
       }
 
-      const cap = Number(project.capacityKw);
-      const panelCount = Math.ceil((cap * 1000) / 550);
-      const structureUnits = Math.ceil(panelCount / 2);
-      const projectBOM = panelCount * panelUnitCost + inverterUnitCost + structureUnits * structureUnitCost + balanceCost;
-      const labor = Math.round(cap * 5500);
-      const overhead = Math.round(projectBOM * 0.08);
+      const freight = Number(prj.freightCost);
+      const civil = Number(prj.civilMaterialCost);
+      const labor = Number(prj.directLaborCost);
 
-      const invoice = project.agreedPrice
-        ? Number(project.agreedPrice)
-        : Math.round((projectBOM + labor + overhead) / (1 - 0.28));
+      const totalJobCost = hardwareCost + freight + civil + labor;
+      const grossMargin = quoted - totalJobCost;
+      const marginPercentage = quoted > 0 ? (grossMargin / quoted) * 100 : 0;
 
-      const totalProjectCost = projectBOM + labor + overhead;
-      const profit = invoice - totalProjectCost;
-      const marginPct = invoice > 0 ? (profit / invoice) * 100 : 0;
+      // Aggregate global pipeline metrics
+      totalRevenueQuoted += quoted;
+      totalCollectedSoFar += collected;
+      totalDirectCostBOM += hardwareCost;
+      totalFreightAndCivil += freight + civil;
+      totalDirectLabor += labor;
 
-      totalRevenue += invoice;
-      totalEstimatedBOMCost += projectBOM;
-      totalLaborCost += labor;
-      totalOverheadCost += overhead;
+      return {
+        id: prj.id,
+        projectCode: prj.projectCode,
+        customerName: prj.customer.fullName,
+        phone: prj.customer.phone,
+        status: prj.status,
+        systemType: prj.systemType,
+        capacityKw: Number(prj.systemCapacityKw),
+        totalQuotedPrice: quoted,
+        collectedAmount: collected,
+        outstandingReceivable,
+        costBreakdown: {
+          hardwareCost,
+          freightCost: freight,
+          civilMaterialCost: civil,
+          directLaborCost: labor,
+          totalJobCost,
+        },
+        grossMargin,
+        marginPercentage: Number(marginPercentage.toFixed(2)),
+        isProfitable: grossMargin > 0,
+      };
+    });
 
-      auditedProjects.push({
-        code: project.projectCode,
-        customer: project.customer.fullName,
-        capacity: `${cap.toFixed(1)} kW`,
-        invoice: Math.round(invoice),
-        bom: Math.round(projectBOM),
-        labor: Math.round(labor),
-        overhead: Math.round(overhead),
-        profit: Math.round(profit),
-        marginPct: Number(marginPct.toFixed(1)),
-        status: project.status,
-      });
-    }
-
-    const netProfitTotal = totalRevenue - (totalEstimatedBOMCost + totalLaborCost + totalOverheadCost);
-    const grossMarginPercent = totalRevenue > 0
-      ? Number(((netProfitTotal / totalRevenue) * 100).toFixed(1))
-      : 28.3;
+    const totalExecutionCosts = totalDirectCostBOM + totalFreightAndCivil + totalDirectLabor;
+    const netOperatingProfit = totalRevenueQuoted - totalExecutionCosts;
 
     return apiSuccess({
-      totalRevenue,
-      totalEstimatedBOMCost,
-      totalLaborCost,
-      totalOverheadCost,
-      grossMarginPercent,
-      pipelineDistribution,
-      projects: auditedProjects,
-      metrics: {
-        totalProjects: projects.length,
-        totalRevenue,
-        totalEstimatedBOMCost,
-        totalLaborCost,
-        totalOverheadCost,
-        grossProfit: netProfitTotal,
-        grossMarginPercent,
+      monthEndExecutiveSummary: {
+        totalRevenueQuoted,
+        totalCollectedSoFar,
+        totalOutstandingReceivables: totalRevenueQuoted - totalCollectedSoFar,
+        totalExecutionCosts,
+        netOperatingProfit,
+        fixedMonthlyPayrollOverhead: totalMonthlyPayroll,
+        activeStaffCount: staffMembers.length,
+        openServiceTicketsCount: openTicketsCount,
+        totalProjectsInPipeline: projects.length,
       },
+      projectFinancials,
     });
   } catch (error) {
     return handleApiError(error);

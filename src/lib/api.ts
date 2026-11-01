@@ -1,276 +1,247 @@
-import { ProjectLead, SiteSurveyInput, SystemType } from '@/types/solar';
+import {
+  Project,
+  SiteSurvey,
+  SupportTicket,
+  User,
+  ProjectFinancialItem,
+  MonthEndExecutiveSummary,
+  SerialRegistry,
+} from "@/types/solar";
 
-export interface ApiErrorPayload {
-  code: string;
-  message: string;
-  fieldErrors?: Record<string, string[]> | null;
-  timestamp?: string;
-}
-
-export interface ApiResponse<T> {
+interface ApiResponse<T> {
   success: boolean;
-  data?: T;
-  error?: ApiErrorPayload;
-}
-
-export class ApiError extends Error {
-  code: string;
-  status: number;
-  fieldErrors?: Record<string, string[]> | null;
-
-  constructor(status: number, error: ApiErrorPayload) {
-    super(error.message);
-    this.name = 'ApiError';
-    this.status = status;
-    this.code = error.code || `HTTP_${status}`;
-    this.fieldErrors = error.fieldErrors;
-  }
+  data: T;
+  error?: {
+    code: string;
+    message: string;
+  };
 }
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('sunpower_auth_token') : null;
+  const headers = {
+    "Content-Type": "application/json",
+    ...options.headers,
+  };
 
-  const res = await fetch(endpoint, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
+  const response = await fetch(endpoint, {
     ...options,
+    headers,
   });
 
-  const payload: ApiResponse<T> = await res.json().catch(() => ({
-    success: false,
-    error: {
-      code: 'NETWORK_PARSE_ERROR',
-      message: 'Failed to communicate with API server or parse response payload.',
-    },
-  }));
+  const json: ApiResponse<T> = await response.json();
 
-  if (!res.ok || !payload.success) {
-    throw new ApiError(res.status, payload.error ?? { code: `HTTP_${res.status}`, message: res.statusText });
+  if (!response.ok || !json.success) {
+    const errorMsg = json.error?.message || `Request failed with status ${response.status}`;
+    throw new Error(errorMsg);
   }
 
-  return payload.data as T;
+  return json.data;
 }
 
-// 1. Authentication
-export interface LoginResponse {
-  token: string;
-  user: {
-    id: string;
-    email: string;
-    name?: string;
-    fullName?: string;
-    role: 'ADMIN' | 'DIRECTOR' | 'SALES' | 'SURVEYOR' | 'WAREHOUSE' | 'TECHNICIAN' | 'SUPPORT';
-  };
-}
+// ----------------------------------------------------
+// AUTHENTICATION
+// ----------------------------------------------------
 
-export async function loginApi(credentials: { email: string; password: string }): Promise<LoginResponse> {
-  return request<LoginResponse>('/api/auth/login', {
-    method: 'POST',
-    body: JSON.stringify(credentials),
+export async function loginUser(email: string, password: string): Promise<User> {
+  return request<User>("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
   });
 }
 
-// 2. Sales CRM & Quotes
-export async function getLeadsApi(): Promise<ProjectLead[]> {
-  return request<ProjectLead[]>('/api/leads', { method: 'GET' });
+// ----------------------------------------------------
+// PHASE 1: LEADS & SURVEYS
+// ----------------------------------------------------
+
+export async function fetchLeads(): Promise<Project[]> {
+  return request<Project[]>("/api/leads");
 }
 
-export async function createLeadApi(data: {
-  customerName: string;
+export interface CreateLeadPayload {
+  fullName: string;
   phone: string;
-  address: string;
-  capacityKw: number;
-  systemType: SystemType;
   email?: string;
-}): Promise<ProjectLead> {
-  return request<ProjectLead>('/api/leads', {
-    method: 'POST',
-    body: JSON.stringify(data),
+  installationAddress: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  systemCapacityKw: number;
+  systemType?: string;
+  consumerAccountNumber?: string;
+  sanctionedLoadKw?: number;
+  monthlyPowerBill?: number;
+  packageTemplateId?: number;
+}
+
+export async function createLead(payload: CreateLeadPayload): Promise<Project> {
+  return request<Project>("/api/leads", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
-export async function generateQuoteApi(data: {
-  projectId: string;
-  capacityKw?: number;
-  systemType?: SystemType;
-  agreedPrice?: number;
-  marginMarkupPercent?: number;
-}): Promise<{ quoteId: string; projectStatus: string; project?: unknown; quote?: unknown }> {
-  return request('/api/quotes/generate', {
-    method: 'POST',
-    body: JSON.stringify(data),
+export async function fetchSurveys(projectId?: number): Promise<SiteSurvey[]> {
+  const url = projectId ? `/api/surveys?projectId=${projectId}` : "/api/surveys";
+  return request<SiteSurvey[]>(url);
+}
+
+export interface SubmitSurveyPayload {
+  projectId: number;
+  roofType: string;
+  usableAreaSqFt: number;
+  isSouthFacing: boolean;
+  tiltAngleDeg: number;
+  hasShadingIssue: boolean;
+  parapetHeightFt?: number;
+  dcCableRunMtrs: number;
+  acCableRunMtrs: number;
+  earthPitViable: boolean;
+  isApproved: boolean;
+  rejectionReason?: string;
+  surveyNotes?: string;
+}
+
+export async function submitSurvey(payload: SubmitSurveyPayload): Promise<SiteSurvey> {
+  return request<SiteSurvey>("/api/surveys", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
-export async function confirmOrderApi(data: {
-  projectId: string;
-  agreedPrice: number;
-}): Promise<{ message: string; project: unknown }> {
-  return request('/api/orders/confirm', {
-    method: 'POST',
-    body: JSON.stringify(data),
+// ----------------------------------------------------
+// PHASE 2: QUOTATIONS & MILESTONE PAYMENTS
+// ----------------------------------------------------
+
+export interface GenerateQuotePayload {
+  projectId: number;
+  packageTemplateId: number;
+  customQuotedPrice?: number;
+}
+
+export async function generateQuote(payload: GenerateQuotePayload) {
+  return request<{ project: Project; quotationBreakdown: Record<string, unknown> }>(
+    "/api/quotes/generate",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+export interface RecordPaymentPayload {
+  projectId: number;
+  paymentAmount: number;
+  milestoneType: "BOOKING_20" | "PRE_DISPATCH_70";
+}
+
+export async function recordMilestonePayment(payload: RecordPaymentPayload) {
+  return request<{ message: string; project: Project }>("/api/orders/confirm", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
-// 3. Surveyor Feasibility
-export type SiteSurveyPayload = SiteSurveyInput;
+// ----------------------------------------------------
+// PHASE 4: WAREHOUSE & KITTED DISPATCH
+// ----------------------------------------------------
 
-export async function submitSurveyApi(data: SiteSurveyInput): Promise<{ surveyId: string; projectStatus: string; project?: unknown }> {
-  return request('/api/surveys', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
-}
-
-// 4. Warehouse Dispatch Barcode Scan (POST /api/dispatch/scan & GET /api/dispatch)
-export interface DispatchScanResult {
-  serialNumber: string;
-  category: string;
-  modelName: string;
-  dispatchedAt: string;
-  projectStatus: string;
-}
-
-export async function scanDispatchBarcodeApi(data: {
-  projectId: string;
-  serialNumber: string;
-}): Promise<DispatchScanResult> {
-  return request<DispatchScanResult>('/api/dispatch/scan', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
-}
-
-export async function getWarehouseStockApi(projectId?: string): Promise<{
-  stockItems: Array<{
-    id: string;
-    sku: string;
-    modelName: string;
-    category: string;
-    unitCost: number;
-    quantityOnHand: number;
-    warrantyMonths: number;
-    serialRegistry?: Array<{ id: string; serialNumber: string; isDispatched: boolean; projectId: string | null }>;
-  }>;
-  availableSerials: Array<{
-    id: string;
-    serialNumber: string;
-    stockItem: { sku: string; modelName: string; category: string };
-  }>;
+export async function fetchDispatchData(): Promise<{
+  pendingProjects: Project[];
+  availableSerials: SerialRegistry[];
 }> {
-  const url = projectId ? `/api/dispatch?projectId=${encodeURIComponent(projectId)}` : '/api/dispatch';
-  return request(url, { method: 'GET' });
+  return request<{
+    pendingProjects: Project[];
+    availableSerials: SerialRegistry[];
+  }>("/api/dispatch");
 }
 
-// 5. Technician Commissioning Sign-Off (POST /api/commissioning/sign)
-export interface CommissioningSignPayload {
-  projectId: string;
-  vocVolts?: number;
-  vocVoltsMeasured?: number;
-  iscAmperes?: number;
-  iscAmpsMeasured?: number;
-  earthingResistanceOhms: number;
-  signatureSvg?: string;
-  customerSignatureSvg?: string;
-  completionPhotoUrl?: string;
-}
-
-export async function submitCommissioningSignApi(
-  data: CommissioningSignPayload
-): Promise<{ recordId: string; projectStatus: string; warrantyStartDate: string }> {
-  return request('/api/commissioning/sign', {
-    method: 'POST',
-    body: JSON.stringify(data),
+export async function dispatchProjectKit(projectId: number, serialNumbers: string[]) {
+  return request<{
+    message: string;
+    project: Project;
+    dispatchedSerials: SerialRegistry[];
+  }>("/api/dispatch", {
+    method: "POST",
+    body: JSON.stringify({ projectId, serialNumbers }),
   });
 }
 
-// 6. Executive Margins (GET /api/analytics/margins)
-export interface AnalyticsMarginsData {
-  totalRevenue: number;
-  totalEstimatedBOMCost: number;
-  totalLaborCost: number;
-  totalOverheadCost: number;
-  grossMarginPercent: number;
-  pipelineDistribution: {
-    leadReceived: number;
-    surveyPending: number;
-    surveyApproved: number;
-    quoteIssued: number;
-    orderConfirmed: number;
-    dispatched: number;
-    commissioned: number;
-    completed: number;
-    rejected: number;
-  };
-  projects: Array<{
-    code: string;
-    customer: string;
-    capacity: string;
-    invoice: number;
-    bom: number;
-    labor: number;
-    overhead: number;
-    profit: number;
-    marginPct: number;
-    status: string;
-  }>;
+// ----------------------------------------------------
+// PHASE 5 & 6: FIELD COMMISSIONING & HANDOVER
+// ----------------------------------------------------
+
+export interface SubmitCommissioningPayload {
+  projectId: number;
+  civilPadsCompleted: boolean;
+  groutCuringVerified: boolean;
+  structureTorqued: boolean;
+  dcConduitCompleted: boolean;
+  earthPitsCompleted: boolean;
+  vocVolts: number;
+  iscAmperes: number;
+  earthResistanceOhms: number;
+  customerSignatureSvg: string;
+  roofPhotoUrl?: string;
 }
 
-export async function fetchAnalyticsMarginsApi(): Promise<AnalyticsMarginsData> {
-  return request<AnalyticsMarginsData>('/api/analytics/margins', {
-    method: 'GET',
+export async function submitCommissioning(payload: SubmitCommissioningPayload) {
+  return request<{ message: string; project: Project }>("/api/commissioning/sign", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
-// 7. Support Tickets (GET /api/tickets & PATCH /api/tickets/[id])
-export interface SupportTicket {
-  id: string;
-  ticketCode: string;
-  projectId: string;
-  projectCode: string;
-  customerName: string;
-  issueDescription: string;
-  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-  status: 'OPEN' | 'IN_PROGRESS' | 'INVESTIGATING' | 'PARTS_REPLACED' | 'RESOLVED' | 'CLOSED';
-  createdAt: string;
+// ----------------------------------------------------
+// PHASE 8: SUPPORT TICKETS & RMA SWAPS
+// ----------------------------------------------------
+
+export async function fetchTickets(status?: string, search?: string): Promise<SupportTicket[]> {
+  const params = new URLSearchParams();
+  if (status) params.append("status", status);
+  if (search) params.append("search", search);
+
+  const query = params.toString();
+  return request<SupportTicket[]>(query ? `/api/tickets?${query}` : "/api/tickets");
 }
 
-interface TicketsResponse {
-  count?: number;
-  tickets?: SupportTicket[];
+export interface CreateTicketPayload {
+  projectId: number;
+  reportedIssue: string;
+  faultySerialNumber?: string;
+  assignedToId?: number;
 }
 
-export async function getTicketsApi(): Promise<SupportTicket[]> {
-  const res = await request<SupportTicket[] | TicketsResponse>('/api/tickets', { method: 'GET' });
-  if (Array.isArray(res)) return res;
-  if (res && Array.isArray(res.tickets)) return res.tickets;
-  return [];
-}
-
-export async function updateTicketStatusApi(
-  ticketId: string,
-  status: string,
-  description?: string,
-  replacementSerial?: string
-): Promise<unknown> {
-  return request(`/api/tickets/${ticketId}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ status, description, replacementSerial }),
+export async function createTicket(payload: CreateTicketPayload): Promise<SupportTicket> {
+  return request<SupportTicket>("/api/tickets", {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
-export async function createTicketApi(data: {
-  projectId?: string;
-  serialNumber?: string;
-  reportedFaultCode?: string;
-  description: string;
-  priority?: string;
-}): Promise<SupportTicket> {
-  return request<SupportTicket>('/api/tickets', {
-    method: 'POST',
-    body: JSON.stringify(data),
+export interface UpdateTicketPayload {
+  status?: string;
+  assignedToId?: number | null;
+  resolutionNotes?: string;
+  faultySerialNumber?: string;
+  replacementSerialNumber?: string;
+}
+
+export async function updateTicket(ticketId: number, payload: UpdateTicketPayload): Promise<SupportTicket> {
+  return request<SupportTicket>(`/api/tickets/${ticketId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
   });
+}
+
+// ----------------------------------------------------
+// DIRECTOR EXECUTIVE FINANCIALS
+// ----------------------------------------------------
+
+export interface DirectorAnalyticsResponse {
+  monthEndExecutiveSummary: MonthEndExecutiveSummary;
+  projectFinancials: ProjectFinancialItem[];
+}
+
+export async function fetchDirectorMargins(): Promise<DirectorAnalyticsResponse> {
+  return request<DirectorAnalyticsResponse>("/api/analytics/margins");
 }

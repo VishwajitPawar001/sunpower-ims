@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { loginSchema } from "@/lib/validations";
-import { handleApiError, ApiError } from "@/lib/errorHandler";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { handleApiError, ApiError } from "@/lib/errorHandler";
 
 const JWT_SECRET =
   process.env.JWT_SECRET ||
@@ -13,58 +12,64 @@ const JWT_SECRET =
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const valid = loginSchema.parse(body);
+    const { email, password } = body;
 
+    if (!email || !password) {
+      throw new ApiError(400, "BAD_REQUEST", "Email and password are required.");
+    }
+
+    // Look up staff member by email
     const user = await prisma.user.findUnique({
-      where: { email: valid.email.toLowerCase().trim() },
+      where: { email: email.toLowerCase().trim() },
     });
 
-    if (!user || !user.isActive) {
-      throw new ApiError(401, "UNAUTHORIZED", "Invalid credentials or inactive account.");
+    if (!user) {
+      throw new ApiError(401, "UNAUTHORIZED", "Invalid email or password.");
     }
 
-    const isMatch = await bcrypt.compare(valid.password, user.passwordHash);
-    if (!isMatch) {
-      throw new ApiError(401, "UNAUTHORIZED", "Invalid credentials.");
+    if (!user.isActive) {
+      throw new ApiError(403, "FORBIDDEN", "This staff account has been deactivated. Contact Admin.");
     }
 
+    // Verify bcrypt password hash
+    const isValid = await bcrypt.compare(password, user.passwordHash);
+    if (!isValid) {
+      throw new ApiError(401, "UNAUTHORIZED", "Invalid email or password.");
+    }
+
+    // Create signed token with employee role and code
     const token = jwt.sign(
       {
-        userId: user.id,
+        id: user.id,
+        employeeCode: user.employeeCode,
         email: user.email,
         role: user.role,
         fullName: user.fullName,
       },
       JWT_SECRET,
-      { expiresIn: "8h" }
+      { expiresIn: "12h" }
     );
 
-    const response = NextResponse.json(
-      {
-        success: true,
-        data: {
-          user: {
-            id: user.id,
-            email: user.email,
-            fullName: user.fullName,
-            name: user.fullName,
-            role: user.role,
-          },
-          token,
-        },
+    // Build response with httpOnly cookie
+    const response = NextResponse.json({
+      success: true,
+      data: {
+        id: user.id,
+        employeeCode: user.employeeCode,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role,
       },
-      { status: 200 }
-    );
+    });
 
-    // Set HTTP-only cookie for browser session handling
     response.cookies.set({
       name: "auth-token",
       value: token,
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 8 * 60 * 60,
       path: "/",
+      maxAge: 60 * 60 * 12, // 12 hours
     });
 
     return response;
